@@ -44,16 +44,6 @@ Validators use a **trained AI model** to score miner responses, ensuring fair, u
 
 ---
 
-## **Setup & Installation**  
-
-```bash
-pip install -r requirements.txt  
-btcli wallet create  # Create a wallet  
-btcli subnet create  # Register a subnet    
-```
-
----
-
 ## **Next Steps**  
 **Integrate dTAO mechanics into ranking & emissions.**  
 **Optimize validator training for better accuracy.**  
