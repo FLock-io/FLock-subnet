@@ -1,6 +1,6 @@
 # Bittensor Local Subnet Setup Guide
 
-This guide walks through setting up a local Bittensor subnet, including installing dependencies, initializing the blockchain, setting up wallets, and running nodes.
+This guide walks through setting up a local Bittensor subnet, including installing dependencies, initializing the blockchain, setting up wallets, and running nodes. **Note that you will require a large amount of memory for this setup**. Use Virtual Environments for ...
 
 ---
 
@@ -8,6 +8,11 @@ This guide walks through setting up a local Bittensor subnet, including installi
 
 ### If Bittensor is **not installed**, run:
 ```sh
+# Create and activate a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
+
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/opentensor/bittensor/master/scripts/install.sh)"
 ```
 
