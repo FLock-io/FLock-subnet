@@ -1,5 +1,4 @@
 import bittensor as bt
-import inspect
 import functools
 import multiprocessing
 import asyncio
@@ -150,7 +149,7 @@ async def store_example_metadata():
     subnet_uid = "1"  # Example subnet ID - replace with your actual subnet ID
     metadata = "Example model metadata"  # Replace with your actual metadata
     
-    print(f"\n--- Attempting to store metadata ---")
+    print("\n--- Attempting to store metadata ---")
     print(f"Subnet UID: {subnet_uid}")
     print(f"Metadata: {metadata}")
     

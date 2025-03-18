@@ -1,4 +1,3 @@
-from typing import Optional, Tuple, Union
 
 import bittensor as bt
 import numpy as np

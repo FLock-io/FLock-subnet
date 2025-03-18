@@ -1,7 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List
-import math
 
 # The uid for this subnet.
 # testnet

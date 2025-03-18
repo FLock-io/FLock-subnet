@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import ClassVar, Optional, Type
 from pydantic import BaseModel, Field, PositiveInt
 
 # The maximum bytes for metadata on the chain.

@@ -10,7 +10,7 @@ def upload_data(repo_name: str, local_file_path: str) -> str:
             exist_ok=False,
             repo_type="dataset",
         )
-    except Exception as e:
+    except Exception:
         print(
             f"Repo {repo_name} already exists. Will commit the new version."
         )

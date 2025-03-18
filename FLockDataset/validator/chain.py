@@ -2,7 +2,7 @@ import torch
 import bittensor as bt
 from FLockDataset.miners.data import ModelId, ModelMetadata
 from typing import Optional
-from typing import Optional, Tuple, Union
+from typing import Tuple, Union
 from bittensor.core.extrinsics.set_weights import set_weights_extrinsic
 
 
@@ -21,7 +21,7 @@ def retrieve_model_metadata(subtensor: bt.subtensor, subnet_uid: int, hotkey: st
     model_id = None
     try:
         model_id = ModelId.from_compressed_str(chain_str)
-    except:
+    except Exception:
         # If the metadata format is not correct on the chain then we return None.
         bt.logging.trace(
             f"Failed to parse the metadata on the chain for hotkey {hotkey}."
