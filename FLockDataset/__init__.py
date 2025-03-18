@@ -26,6 +26,3 @@ __spec_version__ = (
 )
 
 # Import all submodules.
-from . import validator
-from . import utils
-from . import miners

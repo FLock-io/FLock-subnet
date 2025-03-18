@@ -30,7 +30,7 @@ def download_dataset(namespace: str, revision: str, local_dir: str = "data"):
 def clean_cache_folder():
     try:
         shutil.rmtree("data")
-    except:
+    except Exception:
         pass
 
 
@@ -50,7 +50,7 @@ def train_lora(lucky_num: int) -> float:
     os.environ['PYTHONHASHSEED'] = str(lucky_num)
 
     context_length = 512
-    with open(f"FLockDataset/validator/training_args.yaml", "r") as f:
+    with open("FLockDataset/validator/training_args.yaml", "r") as f:
         all_training_args = yaml.safe_load(f)
     model_id = next(iter(all_training_args))
     training_args = LoraTrainingArguments(**all_training_args[model_id])
