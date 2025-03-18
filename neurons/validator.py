@@ -40,12 +40,13 @@ class Validator:
             help="Number of blocks to wait before setting weights.",
         )
         parser.add_argument(
-            "--netuid", type=str, help="The subnet UID."
+            "--miner_sample_size",
+            type=int,
+            default=3, 
+            help="Number of miners to sample for each block.",
         )
         parser.add_argument(
-            "--genesis",
-            action="store_true",
-            help="Don't sync to consensus, rather start evaluation from scratch",
+            "--netuid", type=str, help="The subnet UID."
         )
 
         bt.subtensor.add_args(parser)
@@ -120,8 +121,9 @@ class Validator:
             # Evaluate all models on the first iteration.
             consensus = [i for i, val in enumerate(list(self.metagraph.consensus)) if
                          competition_ids[i] == competition.competition_id]
+
             self.uids_queue = EvalQueue(self.weights.cpu().numpy())
-            uids_to_eval = self.uids_queue.take(32)
+            uids_to_eval = self.uids_queue.take(self.config.miner_sample_size)
             bt.logging.debug(f"Uids to eval: {uids_to_eval}")
             print(f"Uids to eval: {uids_to_eval}")
             self.uids_to_eval[competition.competition_id] = uids_to_eval
@@ -133,7 +135,7 @@ class Validator:
 
             # Sync the first few models, we can sync the rest while running.
 
-            uids_to_sync = list(uids_to_eval)[:32]
+            uids_to_sync = list(uids_to_eval)[:self.config.miner_sample_size]
             hotkeys = [self.metagraph.hotkeys[uid] for uid in uids_to_sync]
 
             print(f"hotkeys: {hotkeys}")
