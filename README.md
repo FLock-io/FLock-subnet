@@ -23,7 +23,7 @@ Validators use a **trained AI model** to score miner responses, ensuring fair, u
 
 ### **Stakers & Delegators**  
 - Can stake on validators to earn a share of emissions.  
-- dTAO system influences emissions based on staking & liquidity.  
+- The dTAO system influences emissions based on staking & liquidity.  
 
 ---
 
