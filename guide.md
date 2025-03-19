@@ -31,7 +31,7 @@ Both commands should return valid versions of bittensor and btcli.
 
 ## 2. Install Dependencies
 
-## For MacOS:
+## For macOS:
 ```sh
 brew update
 brew install make git curl openssl llvm protobuf
@@ -49,7 +49,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 ```
 
-## 4. Clone Subtensor Repo and Initialise
+## 4. Clone Subtensor Repo and Initialize
 ```sh
 git clone https://github.com/opentensor/subtensor.git
 ./subtensor/scripts/init.sh
@@ -71,7 +71,7 @@ btcli wallet new_coldkey --wallet.name validator
 btcli wallet new_hotkey --wallet.name validator --wallet.hotkey default
 ```
 
-## 6.Build the Subtensor Node
+## 6. Build the Subtensor Node
 **Note: This step takes a while to complete.**
 ```sh
 cargo build -p node-subtensor --profile release --features pow-faucet
@@ -129,18 +129,50 @@ Replace `<alice_bootnode>` with Alice's boot node address from Step 2 and run th
 
 ### Step 4: Verify Nodes are Running
 
-The logs for Alice and Bob in their respective terminals should indicate that they have 1 peer (i.e. each other).
+The logs for Alice and Bob in their respective terminals should indicate that they have 1 peer (i.e. each other). As long as the nodes are running in the background, you can do the remaining steps in any other directories, preferably the directory of FLock-subnet. So, the set up is split into 2 main parts: the setting up of the local blockchain, and the set up of the testing environment for FLock-subnet.
 
 ## 8. Top Up Wallets with TAO from Faucet
 Run Faucet Command in a **separate terminal**:
 ```sh
 btcli wallet faucet --wallet.name owner --subtensor.chain_endpoint ws://127.0.0.1:9944
+btcli wallet faucet --wallet.name miner --subtensor.chain_endpoint ws://127.0.0.1:9944
+btcli wallet faucet --wallet.name validator --subtensor.chain_endpoint ws://127.0.0.1:9944
 ```
 Note: The port 9944 should match the RPC port of your Alice node.
 
-## 9. Clone and Test FLock-subnet
+## 9. Create a subnet
+```sh
+btcli subnet create --wallet.name owner --subtensor.chain_endpoint ws://127.0.0.1:9944
+```
+
+## 10. Register Keys in the subnet
+```sh
+btcli subnet register --wallet.name miner --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
+btcli subnet register --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
+```
+You wouldn't actually need to register the owner wallet since it is automatically registered when you created the subnet. But if there are any issues, registering it again might help.
+
+## 11. Add Stake
+btcli stake add --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
+
+## 12. Clone and Run FLock-subnet
 After setting up the blockchain, you can now clone and test a subnet. You can do this in a separate directory.
 ```sh
 git clone https://github.com/FLock-io/FLock-subnet.git
 cd FLock-subnet
+python neurons/miner.py --netuid 1 --subtensor.chain_endpoint ws://127.0.0.1:9946 --wallet.name miner --wallet.hotkey default --logging.debug
+python neurons/validator.py --netuid 1 --subtensor.chain_endpoint ws://127.0.0.1:9946 --wallet.name validator --wallet.hotkey default --logging.debug
+```
+
+## 13. Set weights for subnet
+Register a validator on the root subnet and boost to set weights for your subnet. This is a necessary step to ensure that the subnet is able to receive emmissions.
+```sh
+btcli root register --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
+btcli root boost --netuid 1 --increase 1 --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
+```
+
+## 14. Verify incentive mechanism
+After a few blocks the subnet validator will set weights. This indicates that the incentive mechanism is active. Then after a subnet tempo elapses (360 blocks or 72 minutes) you will see your incentive mechanism beginning to distribute TAO to the subnet miner.
+```sh
+btcli wallet overview --wallet.name miner --subtensor.chain_endpoint ws://127.0.0.1:9944
 ```
