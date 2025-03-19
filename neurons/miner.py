@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 def get_config():
     # Initialize an argument parser
     parser = argparse.ArgumentParser()
@@ -24,13 +23,12 @@ def get_config():
     parser.add_argument(
         "--netuid",
         type=str,
-
         help="The subnet UID.",
     )
+
     parser.add_argument(
         "--dataset_path",
         type=str,
-
         help="The dataset path, name as data.json",
     )
 
@@ -48,7 +46,7 @@ async def main(config: bt.config):
 
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
-    metagraph: bt.metagraph = subtensor.metagraph(config.netuid)
+    metagraph: bt.metagraph = subtensor.metagraph(271)
 
     # Make sure we're registered and have a HuggingFace token.
     assert_registered(wallet, metagraph)
