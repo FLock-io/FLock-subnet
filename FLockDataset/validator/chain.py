@@ -14,10 +14,11 @@ def retrieve_model_metadata(subtensor: bt.subtensor, subnet_uid: int, hotkey: st
     if not metadata:
         return None
 
+    # Changed the process of processing commitment to get the chain_str
     commitment = metadata["info"]["fields"][0]
-    hex_data = commitment[list(commitment.keys())[0]][2:]
-
-    chain_str = bytes.fromhex(hex_data).decode()
+    raw_bytes = commitment[0]['Raw64'][0]
+    
+    chain_str = bytes(raw_bytes).decode("utf-8") 
     model_id = None
     try:
         model_id = ModelId.from_compressed_str(chain_str)

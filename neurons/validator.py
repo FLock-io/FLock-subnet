@@ -28,6 +28,12 @@ from FLockDataset.validator.chain import retrieve_model_metadata, set_weights_wi
 from FLockDataset.validator.validator_utils import EvalQueue, compute_wins, adjust_for_vtrust
 from FLockDataset.validator.trainer import train_lora, download_dataset, clean_cache_folder
 
+# Moved the method out of the class to avoid pickling issues when using multiprocessing.Process
+def sync_metagraph(endpoint: str, netuid: int):
+    # Save metagraph to disk in a separate process
+    metagraph = bt.subtensor(endpoint).metagraph(netuid)
+    metagraph.save()
+
 
 class Validator:
     @staticmethod
@@ -67,34 +73,22 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
+        self.config.netuid = int(self.config.netuid) # Typecast to int to avoid type errors
         self.metagraph: bt.metagraph = self.subtensor.metagraph(self.config.netuid)
         torch.backends.cudnn.benchmark = True
-
         self.uid = assert_registered(self.wallet, self.metagraph)
         self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
         self.uids_to_eval: typing.Dict[str, typing.List] = {}
 
+    # Removed multiprocessing to avoid serialization issues and simplify metagraph syncing within the async flow
     async def try_sync_metagraph(self, ttl: int) -> bool:
-        def sync_metagraph(endpoint):
-            # Update self.metagraph
-            self.metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
-            self.metagraph.save()
-
-        process = multiprocessing.Process(
-            target=sync_metagraph, args=(self.subtensor.chain_endpoint,)
-        )
-        process.start()
-        process.join(timeout=ttl)
-        if process.is_alive():
-            process.terminate()
-            process.join()
-            bt.logging.error(f"Failed to sync metagraph after {ttl} seconds")
+        try:
+            self.metagraph.sync(subtensor=self.subtensor)
+            bt.logging.info("Synced metagraph")
+            return True
+        except Exception as e:
+            bt.logging.error(f"Failed to sync metagraph: {e}")
             return False
-
-        bt.logging.info("Synced metagraph")
-        self.metagraph.load()
-
-        return True
 
     async def run_step(self):
 
@@ -106,7 +100,10 @@ class Validator:
         for uid, hotkey in enumerate(list(self.metagraph.hotkeys)):
             competition_ids[uid] = constants.ORIGINAL_COMPETITION_ID
 
-        self.weights.copy_(torch.tensor(self.metagraph.C))
+        # Update consensus weights correctly to avoid size mismatch:
+        for i, uid in enumerate(self.metagraph.uids[:len(self.metagraph.C)]):
+            self.weights[uid] = float(self.metagraph.C[i])
+
         # Update consensus.
         self.consensus = self.metagraph.C
         if synced_metagraph:
