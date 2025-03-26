@@ -46,7 +46,8 @@ async def main(config: bt.config):
 
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
-    metagraph: bt.metagraph = subtensor.metagraph(271)
+    # metagraph: bt.metagraph = subtensor.metagraph(271)
+    metagraph: bt.metagraph = subtensor.metagraph(2)
 
     # Make sure we're registered and have a HuggingFace token.
     assert_registered(wallet, metagraph)

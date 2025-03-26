@@ -5,7 +5,8 @@ import math
 
 # The uid for this subnet.
 # testnet
-SUBNET_UID = 257
+# SUBNET_UID = 257
+SUBNET_UID = 2
 # The start block of this subnet
 ROOT_DIR = Path(__file__).parent.parent
 

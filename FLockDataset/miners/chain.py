@@ -7,7 +7,7 @@ import time
 from typing import Optional, Any
 
 # Create a bittensor wallet and subtensor
-wallet = bt.wallet()
+wallet = bt.wallet(name="miner_1", hotkey="default")
 subtensor = bt.subtensor()
 print(wallet.coldkey.ss58_address)
 
