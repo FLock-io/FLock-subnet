@@ -168,12 +168,12 @@ btcli wallet faucet --wallet.name validator --subtensor.chain_endpoint ws://127.
 ```
 > Note: The port 9944 should match the RPC port of your Alice node.
 ---
-### 9. Create a subnet
+### 9. Create a Subnet
 ```sh
 btcli subnet create --wallet.name owner --subtensor.chain_endpoint ws://127.0.0.1:9944
 ```
 ---
-### 10. Register Keys in the subnet
+### 10. Register Keys in the Subnet
 ```sh
 btcli subnet register --wallet.name miner --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
 btcli subnet register --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
@@ -186,7 +186,7 @@ You can register it again manually if needed.
 btcli stake add --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
 ```
 ---
-### 12. Set weights for subnet
+### 12. Set Weights for Subnet
 Register a validator on the root subnet and boost to set weights for your subnet. 
 ```sh
 btcli root register --wallet.name validator --wallet.hotkey default --subtensor.chain_endpoint ws://127.0.0.1:9944
@@ -201,7 +201,7 @@ After setting up the blockchain, you can now clone and test a subnet.
 
 The details of the running FLock-subnet can be found [here](README.md).
 ---
-### 14. Verify incentive mechanism
+### 14. Verify Incentive Mechanism
 After a few blocks, the subnet validator should begin setting weights.
 Then, once a full subnet tempo passes (360 blocks = ~72 minutes), TAO emissions will start flowing to the miner.
 
