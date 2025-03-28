@@ -21,7 +21,7 @@ This guide walks through setting up a local Bittensor subnet, including installi
 
 ---
 ### 1. Install Bittensor
-- 🆕 Fresh install:
+- 🆕 Fresh installation:
     ```sh
     # Create and activate a virtual environment (recommended)
     python3 -m venv venv
@@ -31,7 +31,7 @@ This guide walks through setting up a local Bittensor subnet, including installi
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/opentensor/bittensor/master/scripts/install.sh)"
     ```
 
- - 🔄 Update existing install:
+ - 🔄 Update existing installation:
     ```sh
     python3 -m pip install --upgrade bittensor
     ```
@@ -99,15 +99,14 @@ Once the build is complete:
     ```sh
     BUILD_BINARY=1 ./scripts/localnet.sh False
     ```
-> The localnet script spins up a local blockchain with pre-configured nodes. This is ideal for local development — not for connecting to testnet or mainnet.
-
+> The localnet script spins up a local blockchain with pre-configured nodes. This is ideal for local development — not for connecting to testnet or mainnet. \
 > ⚠️ If you see 0 peers, proceed to set up Alice and Bob [manually](#7-manual-setup-of-blockchain-nodes).
 ---
 ### 7. Manual Setup of Blockchain Nodes
 
 > **Alternative path:** Use this method only if the localnet script didn’t work properly.
 ---
-**Step 1: Set up First Node (Alice)**
+#### Step 1: Set up First Node (Alice)
 
 Run the following command:
 ```sh
@@ -125,7 +124,7 @@ Run the following command:
 > - rpc-port 9944 → RPC access for API calls.
 > - validator → Runs Alice as a validator.
 ---
-**Step 2: Get Alice's Boot Node Address**
+#### Step 2: Get Alice's Boot Node Address
 
 Find Alice’s bootnode address by running:
 
@@ -139,7 +138,7 @@ Look for an address like:
 /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWHTt3ZwHTARPS35SSHW7M3bcAhWfkYysn93EQmZFHnXsQ
 ```
 ---
-**Step 3: Start the Second Node (Bob)**
+#### Step 3: Start the Second Node (Bob)
 
 Replace `<alice_bootnode>` with Alice's boot node address from Step 2 and run the below in a **separate terminal**:
 ```sh
@@ -152,7 +151,7 @@ Replace `<alice_bootnode>` with Alice's boot node address from Step 2 and run th
     --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/<alice_bootnode>
 ```
 ---
-**Step 4: Verify Nodes are Running**
+#### Step 4: Verify Nodes are Running
 
 Check the logs in both terminals — they should each show 1 peer connected.
 
