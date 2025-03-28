@@ -36,19 +36,17 @@ cd FLock-subnet
 ```
 
 #### 2. Install dependencies with poetry
+  2.1. Install the Poetry tool (if not already installed): 
+  ```bash
+  curl -sSL https://install.python-poetry.org | python3 -
+  ```
 
-1. Install Poetry: 
+  2.2 Use Poetry to install project dependencies:
+  ```bash
+  poetry install
+  poetry shell
+  ```
 
-    ```bash
-    curl -sSL https://install.python-poetry.org | python3 -
-    ```
-
-2. Install Poetry:
-
-    ```bash
-    poetry install
-    poetry shell
-    ```
 ---
 ### 🔐 Set up Hugging Face credentials
 
@@ -117,7 +115,15 @@ Create a wallet and register your hotkey on the subnet.
     - `uid`: The subnet uid you want to register on
 
 ---
-### 🚀 Run the Miner Script:
+### 🚀 Running the Miner:
+
+#### Prerequisites
+
+- **Hugging Face Account and Repository with write permissions**
+- **Dataset Creation**
+- **Bittensor Wallet with hotkey registered on subnet**
+
+#### Run the Miner Script
 
 ```bash
 python3 neurons/miner.py \
@@ -138,12 +144,12 @@ Replace placeholders:
 - `netuid`: Subnet UID (adjust if different)
 - `./data/data.jsonl`: Path to your dataset
 
-**What Happens:**
+#### What Happens:
 - The script uploads data.jsonl to your Hugging Face repo
 - It retrieves a commit hash (e.g., abc123...) and constructs a ModelId (e.g., yourusername/my-dataset:ORIGINAL_COMPETITION_ID:abc123...)
 - It registers this metadata on the Bittensor chain (retrying every 120 seconds if the 20-minute commit cooldown applies)
 
-**Tips:**
+#### Tips:
 - Ensure your dataset is unique—validators penalize duplicates
 - Monitor logs (--logging.trace) for upload or chain errors
 
