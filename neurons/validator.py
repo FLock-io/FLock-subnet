@@ -35,6 +35,7 @@ from flockoff.validator.trainer import (
     clean_cache_folder,
 )
 from flockoff.validator.database import ScoreDB
+from flockoff.utils.clean_gpu import clean_gpu
 
 
 class Validator:
@@ -387,6 +388,10 @@ class Validator:
             weights=weights_py,
             wait_for_inclusion=True,
         )
+
+        # Clean up GPU memory after validation loop
+        bt.logging.info("Cleaning up GPU memory")
+        clean_gpu()
 
     async def run(self):
         while True:
