@@ -39,6 +39,30 @@ def download_dataset(
         os.environ["HF_HOME"] = cache_dir
         os.environ["TRANSFORMERS_CACHE"] = os.path.join(cache_dir, "models")
 
+    # Check if the revision is a specific commit hash
+    check_commit_env = os.environ.get("VALIDATOR_CHECK_COMMIT_HASH", "true").lower()
+    should_check_commit = check_commit_env not in ("false", "0", "no", "f")
+
+    if should_check_commit:
+        try:
+            repo_info = api.repo_info(repo_id=namespace, revision=revision, repo_type="dataset")
+            if repo_info.sha != revision:
+                raise ValueError(
+                    f"Revision '{revision}' for dataset '{namespace}' is not a specific commit hash. "
+                    f"Resolved SHA: '{repo_info.sha}'. "
+                    f"Please use a specific commit hash for the revision. "
+                    f"To disable this check, set the environment variable VALIDATOR_CHECK_COMMIT_HASH=false."
+                )
+            bt.logging.info(f"Revision '{revision}' is a valid commit hash.")
+        except Exception as e:
+            # Catch HfHubHTTPError if revision doesn't exist or other API errors
+            bt.logging.error(f"Error fetching repo info for {namespace}@{revision}: {e}")
+            raise ValueError(
+                f"Failed to validate revision '{revision}' for dataset '{namespace}'. "
+                f"Ensure the revision exists and is accessible. Original error: {e}. "
+                f"To disable this check, set the environment variable VALIDATOR_CHECK_COMMIT_HASH=false."
+            )
+
     if not os.path.isabs(local_dir):
         local_dir = os.path.abspath(local_dir)
 
@@ -46,7 +70,6 @@ def download_dataset(
     api.snapshot_download(
         repo_id=namespace, local_dir=local_dir, revision=revision, repo_type="dataset"
     )
-
 
 def clean_cache_folder(
     data_dir: str = None,
