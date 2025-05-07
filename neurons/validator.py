@@ -24,6 +24,7 @@ import math
 import numpy as np
 from flockoff import constants
 from flockoff.utils.chain import assert_registered, read_chain_commitment
+from flockoff.utils.git_utils import is_running_latest_commit
 from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
@@ -148,6 +149,14 @@ class Validator:
 
     async def run_step(self):
         bt.logging.info("Starting run step")
+
+        # Check if the validator is running the latest commit
+        if not is_running_latest_commit():
+            bt.logging.error("Validator is not running the latest commit from the Flock-subnet repository. Please update your validator.")
+            raise RuntimeError("Validator is not up-to-date. Exiting.")
+        else:
+            bt.logging.info("Validator is running the latest commit.")
+
         bt.logging.info("Attempting to sync metagraph")
 
         synced_metagraph = await self.try_sync_metagraph()
