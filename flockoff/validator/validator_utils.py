@@ -1,8 +1,9 @@
 import bittensor as bt
+import numpy as np
 from flockoff import constants
 
 
-def compute_score(loss, benchmark_loss, power, miner_comp_id, real_comp_id):
+def compute_score(loss, benchmark_loss, min_bench, max_bench, power, bench_height, miner_comp_id, real_comp_id):
     """
     Compute the score based on the loss and benchmark loss.
 
@@ -18,13 +19,14 @@ def compute_score(loss, benchmark_loss, power, miner_comp_id, real_comp_id):
     if loss is None:
         bt.logging.warning("Loss is None, returning score of 0")
         return 0
-    if power is None:
-        bt.logging.warning("Power is None, returning score of 0")
+
+    if power is None or power <= 0:
+        bt.logging.warning("Power is None or negative, returning score of 0")
         return constants.DEFAULT_SCORE
 
-    if miner_comp_id is None or real_comp_id is None:
+    if real_comp_id is None:
         bt.logging.error(
-            f"Invalid miner_comp_id ({miner_comp_id}) or real_comp_id ({real_comp_id}). Returning baseline score."
+            f"Invalid real_comp_id ({real_comp_id}). Returning baseline score."
         )
         return constants.DEFAULT_SCORE
 
@@ -34,30 +36,36 @@ def compute_score(loss, benchmark_loss, power, miner_comp_id, real_comp_id):
         )
         return constants.DEFAULT_SCORE
 
-    if power % 2 != 0 or power < 0:
-        bt.logging.error(
-            f"Power must be a positive even number. Got {power}. Returning baseline score."
-        )
-        return constants.DEFAULT_SCORE
-
     if benchmark_loss is None or benchmark_loss <= 0:
         bt.logging.error(
             f"Invalid benchmark_loss ({benchmark_loss}). Returning baseline score."
         )
         return constants.DEFAULT_SCORE
 
-    center_point = get_center_point(power, benchmark_loss)
-    score = 1 / (1 + center_point * loss**power)
-    return score
+    if min_bench is None or max_bench is None:
+        bt.logging.error(
+            f"Invalid min_bench ({min_bench}) or max_bench ({max_bench}). Returning baseline score."
+        )
+        return constants.DEFAULT_SCORE
 
+    if min_bench >= max_bench:
+        bt.logging.error(
+            f"Invalid min_bench ({min_bench}) >= max_bench ({max_bench}). Returning baseline score."
+        )
+        return constants.DEFAULT_SCORE
 
-def get_center_point(power, benchmark_loss):
-    """
-    Get the center point for the sigmoid function.
+    if loss < min_bench: 
+        return 1.0
+    if loss > max_bench: 
+        return 0.0
 
-    Args:
-        power: The steepness of the function
-        benchmark_loss: The benchmark loss to compare against
-    """
-    a = (power - 1) / (power + 1) * (1 / benchmark_loss) ** power
-    return a
+    if min_bench <= loss <= benchmark_loss: 
+        numerator = (1 - bench_height) * np.pow(loss - benchmark_loss, power)
+        denominator = np.pow((min_bench - max_bench), power)
+        return numerator / denominator + bench_height
+
+    if benchmark_loss <= loss <= max_bench: 
+        numerator = -(bench_height) * np.pow(loss-benchmark_loss, pow)
+        denominator = (max_bench - benchmark_loss) ** power
+        return numerator / denominator + bench_height
+
