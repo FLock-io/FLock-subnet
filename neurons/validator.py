@@ -341,7 +341,7 @@ class Validator:
                     normalized_score = constants.DEFAULT_SCORE
                 else:
                     normalized_score = compute_score(
-                        scores_per_uid[uid], competition.bench, competition.pow
+                        scores_per_uid[uid], competition.bench, competition.pow, metadata.id.competition_id, competition.id
                     )
                 normalized_scores[uid] = normalized_score
             else:

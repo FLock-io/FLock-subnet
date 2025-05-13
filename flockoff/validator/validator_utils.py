@@ -2,7 +2,7 @@ import bittensor as bt
 from flockoff import constants
 
 
-def compute_score(loss, benchmark_loss, power):
+def compute_score(loss, benchmark_loss, power, miner_comp_id, real_comp_id):
     """
     Compute the score based on the loss and benchmark loss.
 
@@ -20,6 +20,18 @@ def compute_score(loss, benchmark_loss, power):
         return 0
     if power is None:
         bt.logging.warning("Power is None, returning score of 0")
+        return constants.DEFAULT_SCORE
+
+    if miner_comp_id is None or real_comp_id is None:
+        bt.logging.error(
+            f"Invalid miner_comp_id ({miner_comp_id}) or real_comp_id ({real_comp_id}). Returning baseline score."
+        )
+        return constants.DEFAULT_SCORE
+
+    if miner_comp_id != real_comp_id:
+        bt.logging.error(
+            f"Miner commitment ID ({miner_comp_id}) does not match real commitment ID ({real_comp_id}). Returning baseline score."
+        )
         return constants.DEFAULT_SCORE
 
     if power % 2 != 0 or power < 0:
