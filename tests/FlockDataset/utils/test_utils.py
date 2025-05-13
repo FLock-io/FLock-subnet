@@ -36,6 +36,10 @@ def test_read_chain_commitment(node):
     ), f"Bench should be a float, got {type(comp.bench)}"
     assert isinstance(comp.rows, int), f"Rows should be an int, got {type(comp.rows)}"
     assert isinstance(comp.pow, int), f"Pow should be an int, got {type(comp.pow)}"
+    assert isinstance(comp.minb, float), f"Minb should be a float, got {type(comp.minb)}"
+    assert isinstance(comp.maxb, float), f"Maxb should be a float, got {type(comp.maxb)}"
+    assert isinstance(comp.bheight, float), f"Bheight should be an int, got {type(comp.bheight)}"
+    assert comp.minb >= 0, f"Minb should be non-negative, got {comp.minb}"
 
     assert comp.id, "ID should not be empty"
     assert comp.repo, "Repo should not be empty"
