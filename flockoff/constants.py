@@ -13,7 +13,7 @@ def get_subnet_owner(is_testnet: bool = False) -> str:
     Returns the subnet owner based on whether it's a testnet or mainnet.
     """
     if is_testnet:
-        return "5FZGwrY9Ycz8m6fq5rpZCgoSrQWddb7SnZCr3rFU61auctG2"
+        return "5Cex1UGEN6GZBcSBkWXtrerQ6Zb7h8eD7oSe9eDyZmj4doWu"
     else:
         return "5DFcEniKrQRbCakLFGY3UqPL3ZbNnTQHp8LTvLfipWhE2Yfr"
 
