@@ -15,8 +15,14 @@ def test_pow_8():
     power = 8
     loss = 0.15
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     # Note: you may need to re-adjust this expected value to match new score function logic
     assert 0 <= score <= 1, f"Score should be in [0, 1], got {score}"
@@ -28,8 +34,14 @@ def test_high_loss_evaluation():
     power = 2
     expected_score = 0.0
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -40,8 +52,14 @@ def test_zero_loss_evaluation():
     power = 2
     expected_score = 1.0
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -52,8 +70,14 @@ def test_none_loss_evaluation():
     power = 2
     expected_score = 0.0
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -64,8 +88,14 @@ def test_zero_benchmark_evaluation():
     power = 2
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -76,8 +106,14 @@ def test_negative_benchmark_evaluation():
     power = 2
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -88,8 +124,14 @@ def test_none_benchmark_evaluation():
     power = 2
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -100,8 +142,14 @@ def test_invalid_power():
     power = -1
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -112,8 +160,14 @@ def test_none_power():
     power = None
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, DEFAULT_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        DEFAULT_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
 
@@ -124,8 +178,13 @@ def test_mismatched_competition_id():
     power = 2
     expected_score = constants.DEFAULT_SCORE
     score = compute_score(
-        loss, benchmark_loss, DEFAULT_MIN_BENCH, DEFAULT_MAX_BENCH, power,
-        DEFAULT_BENCH_HEIGHT, MISMATCH_COMPETITION_ID, DEFAULT_COMPETITION_ID
+        loss,
+        benchmark_loss,
+        DEFAULT_MIN_BENCH,
+        DEFAULT_MAX_BENCH,
+        power,
+        DEFAULT_BENCH_HEIGHT,
+        MISMATCH_COMPETITION_ID,
+        DEFAULT_COMPETITION_ID,
     )
     assert np.isclose(score, expected_score, rtol=1e-9)
-

@@ -37,9 +37,15 @@ def test_read_chain_commitment(node):
     ), f"Bench should be a float, got {type(comp.bench)}"
     assert isinstance(comp.rows, int), f"Rows should be an int, got {type(comp.rows)}"
     assert isinstance(comp.pow, int), f"Pow should be an int, got {type(comp.pow)}"
-    assert isinstance(comp.minb, float), f"Minb should be a float, got {type(comp.minb)}"
-    assert isinstance(comp.maxb, float), f"Maxb should be a float, got {type(comp.maxb)}"
-    assert isinstance(comp.bheight, float), f"Bheight should be an int, got {type(comp.bheight)}"
+    assert isinstance(
+        comp.minb, float
+    ), f"Minb should be a float, got {type(comp.minb)}"
+    assert isinstance(
+        comp.maxb, float
+    ), f"Maxb should be a float, got {type(comp.maxb)}"
+    assert isinstance(
+        comp.bheight, float
+    ), f"Bheight should be an float, got {type(comp.bheight)}"
     assert comp.minb >= 0, f"Minb should be non-negative, got {comp.minb}"
 
     assert comp.id, "ID should not be empty"
@@ -50,9 +56,15 @@ def test_read_chain_commitment(node):
     assert comp.minb >= 0, f"Minb should be non-negative, got {comp.minb}"
     assert comp.maxb >= 0, f"Maxb should be non-negative, got {comp.maxb}"
     assert comp.bheight >= 0, f"Bheight should be non-negative, got {comp.bheight}"
-    assert comp.minb <= comp.maxb, f"Minb should be less than or equal to maxb, got {comp.minb} > {comp.maxb}"
-    assert comp.bheight <= comp.maxb, f"Bheight should be less than or equal to maxb, got {comp.bheight} > {comp.maxb}"
-    assert comp.bheight >= comp.minb, f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
+    assert (
+        comp.minb <= comp.maxb
+    ), f"Minb should be less than or equal to maxb, got {comp.minb} > {comp.maxb}"
+    assert (
+        comp.bheight <= comp.maxb
+    ), f"Bheight should be less than or equal to maxb, got {comp.bheight} > {comp.maxb}"
+    assert (
+        comp.bheight >= comp.minb
+    ), f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
     assert comp.bheight > 0, f"Bheight should be positive, got {comp.bheight}"
     assert comp.minb > 0, f"Minb should be positive, got {comp.minb}"
     assert comp.maxb > 0, f"Maxb should be positive, got {comp.maxb}"
