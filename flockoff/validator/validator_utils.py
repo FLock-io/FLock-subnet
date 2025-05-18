@@ -68,12 +68,16 @@ def compute_score(
     if loss > max_bench:
         return 0.0
 
+    # For values between min_bench and benchmark_loss:
+    # Calculate a score that decreases from 1.0 at min_bench to bench_height at benchmark_loss
     if min_bench <= loss <= benchmark_loss:
         numerator = (1 - bench_height) * np.pow(loss - benchmark_loss, power)
         denominator = np.pow((min_bench - benchmark_loss), power)
         return numerator / denominator + bench_height
 
+    # For values between benchmark_loss and max_bench:
+    # Calculate a score that decreases from bench_height at benchmark_loss to 0.0 at max_bench
     if benchmark_loss <= loss <= max_bench:
-        numerator = -(bench_height) * np.pow(loss - benchmark_loss, pow)
+        numerator = -(bench_height) * np.pow(loss - benchmark_loss, power)
         denominator = np.pow((max_bench - benchmark_loss), power)
         return numerator / denominator + bench_height

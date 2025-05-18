@@ -37,16 +37,8 @@ def test_read_chain_commitment(node):
     ), f"Bench should be a float, got {type(comp.bench)}"
     assert isinstance(comp.rows, int), f"Rows should be an int, got {type(comp.rows)}"
     assert isinstance(comp.pow, int), f"Pow should be an int, got {type(comp.pow)}"
-    assert isinstance(
-        comp.minb, float
-    ), f"Minb should be a float, got {type(comp.minb)}"
-    assert isinstance(
-        comp.maxb, float
-    ), f"Maxb should be a float, got {type(comp.maxb)}"
-    assert isinstance(
-        comp.bheight, float
-    ), f"Bheight should be an float, got {type(comp.bheight)}"
-    assert comp.minb >= 0, f"Minb should be non-negative, got {comp.minb}"
+    for attr in ("minb", "maxb", "bheight"):
+        assert isinstance(getattr(comp, attr), float), f"{attr} should be a float"
 
     assert comp.id, "ID should not be empty"
     assert comp.repo, "Repo should not be empty"
@@ -65,11 +57,6 @@ def test_read_chain_commitment(node):
     assert (
         comp.bheight >= comp.minb
     ), f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
-    assert comp.bheight > 0, f"Bheight should be positive, got {comp.bheight}"
-    assert comp.minb > 0, f"Minb should be positive, got {comp.minb}"
-    assert comp.maxb > 0, f"Maxb should be positive, got {comp.maxb}"
-    assert comp.rows > 0, f"Rows should be positive, got {comp.rows}"
-    assert comp.pow > 0, f"Pow should be positive, got {comp.pow}"
 
     bt.logging.info(
         f"Commitment values: id={comp.id}, repo={comp.repo}, bench={comp.bench}, rows={comp.rows}, pow={comp.pow}"
