@@ -232,5 +232,17 @@ def train_lora(
 
     # Eval model
     eval_result = eval_trainer.evaluate()
-
+    
+    # Cleanup to prevent memory leaks
+    eval_model = eval_model.cpu()
+    del eval_model
+    del eval_trainer
+    del trainer
+    del model
+    del tokenizer
+    
+    # Clear CUDA cache
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
     return eval_result["eval_loss"]
