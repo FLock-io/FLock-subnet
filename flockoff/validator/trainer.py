@@ -194,13 +194,12 @@ def train_lora(
 
         eval_path = os.path.join(eval_data_dir, "data.jsonl")
         if not os.path.exists(eval_path):
-            # Look for any jsonl file in the eval directory
+            # Look for any jsonl file in the evaluation directory
             jsonl_files = []
-            for root, _, files in os.walk(eval_path):
+            for root, _, files in os.walk(eval_data_dir):
                 for file in files:
                     if file.endswith(".jsonl"):
                         jsonl_files.append(os.path.join(root, file))
-
             if jsonl_files:
                 eval_path = jsonl_files[0]
                 bt.logging.info(f"Using evaluation file: {eval_path}")
