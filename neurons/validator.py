@@ -132,6 +132,10 @@ class Validator:
         bt.logging.info(f"Weights initialized with shape: {self.weights.shape}")
 
         self.uids_to_eval: typing.Dict[str, typing.List] = {}
+        self.scores_per_uid = {}
+        self.block_per_uid = {}
+        self.current_uids = self.metagraph.uids.tolist()
+        bt.logging.info(f"Current UIDs: {self.current_uids}")
         bt.logging.info("Initializing score database")
         self.score_db = ScoreDB("scores.db")
         bt.logging.info("Score database initialized")
@@ -158,17 +162,15 @@ class Validator:
             bt.logging.warning("Failed to sync metagraph")
             return
 
-        bt.logging.info("Getting current UIDs and hotkeys")
-        current_uids = self.metagraph.uids.tolist()
+        bt.logging.info("Getting current hotkeys")
         hotkeys = self.metagraph.hotkeys
-        bt.logging.info(f"Current UIDs: {current_uids}")
 
         base_score = constants.DEFAULT_SCORE
-        for uid in current_uids:
+        for uid in self.current_uids:
             self.score_db.insert_or_reset_uid(uid, hotkeys[uid], base_score)
 
         bt.logging.info("Getting scores from database")
-        db_scores = self.score_db.get_scores(current_uids)
+        db_scores = self.score_db.get_scores(self.current_uids)
 
         bt.logging.info("Setting weights tensor from database scores")
         self.weights = torch.tensor(db_scores, dtype=torch.float32)
@@ -195,14 +197,15 @@ class Validator:
         bt.logging.info(f"Competition commitment: {competition}")
 
         bt.logging.info("Sampling competitors for evaluation")
-        competitors = current_uids
+        competitors = self.current_uids
         sample_size = min(self.config.miner_sample_size, len(competitors))
         uids_to_eval = self.rng.choice(competitors, sample_size, replace=False).tolist()
+        self.current_uids = list(set(self.current_uids) - set(uids_to_eval))
+        if not self.current_uids:
+            self.current_uids = self.metagraph.uids.tolist()
         lucky_num = int.from_bytes(os.urandom(4), "little")
         bt.logging.debug(f"UIDs to evaluate: {uids_to_eval}")
 
-        scores_per_uid = {}
-        block_per_uid = {}
         for uid in uids_to_eval:
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
@@ -264,26 +267,26 @@ class Validator:
                     )
                     bt.logging.info(f"Training complete with eval loss: {eval_loss}")
 
-                    scores_per_uid[uid] = eval_loss
-                    block_per_uid[uid] = metadata.block
+                    self.scores_per_uid[uid] = eval_loss
+                    self.block_per_uid[uid] = metadata.block
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
                 except Exception as e:
                     bt.logging.error(f"train error: {e}")
-                    scores_per_uid[uid] = constants.DEFAULT_SCORE
-                    block_per_uid[uid] = metadata.block
+                    self.scores_per_uid[uid] = constants.DEFAULT_SCORE
+                    self.block_per_uid[uid] = metadata.block
                     bt.logging.info(
                         f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid} due to train error"
                     )
             else:
                 bt.logging.warning(f"No metadata found for UID {uid}")
-                scores_per_uid[uid] = 0
+                self.scores_per_uid[uid] = 0
 
         duplicate_groups = []
         processed_uids = set()
 
         bt.logging.info("Checking for duplicate scores")
-        for uid_i, score_i in scores_per_uid.items():
+        for uid_i, score_i in self.scores_per_uid.items():
             # Skip UIDs with None or 0 scores, or already processed UIDs
             if (
                 score_i is None
@@ -298,7 +301,7 @@ class Validator:
 
             # Find all UIDs with nearly identical scores
             similar_uids = [uid_i]
-            for uid_j, score_j in scores_per_uid.items():
+            for uid_j, score_j in self.scores_per_uid.items():
                 if (
                     uid_i != uid_j
                     and score_j not in (None, 0, constants.DEFAULT_SCORE)
@@ -320,19 +323,20 @@ class Validator:
         duplicates = set()
         for group in duplicate_groups:
             bt.logging.info(f"Processing duplicate group: {group}")
-            group.sort(key=lambda uid: block_per_uid[uid])
+            group.sort(key=lambda uid: self.block_per_uid[uid])
             bt.logging.info(f"Sorted by block: {group}")
 
             for uid in group[1:]:
                 duplicates.add(uid)
-                scores_per_uid[uid] = constants.DEFAULT_SCORE
+                self.scores_per_uid[uid] = constants.DEFAULT_SCORE
+                self.weights[uid] = 0
 
         bt.logging.info("Normalizing scores")
         normalized_scores = {}
         for uid in uids_to_eval:
-            if scores_per_uid[uid] is not None and scores_per_uid[uid] != 0:
+            if self.scores_per_uid[uid] is not None and self.scores_per_uid[uid] != 0:
                 bt.logging.debug(
-                    f"Computing normalized score for UID {uid} with raw score {scores_per_uid[uid]}"
+                    f"Computing normalized score for UID {uid} with raw score {self.scores_per_uid[uid]}"
                 )
                 if competition.bench is None or competition.bench <= 0:
                     bt.logging.warning(
@@ -341,7 +345,7 @@ class Validator:
                     normalized_score = constants.DEFAULT_SCORE
                 else:
                     normalized_score = compute_score(
-                        scores_per_uid[uid], competition.bench, competition.pow
+                        self.scores_per_uid[uid], competition.bench, competition.pow
                     )
                 normalized_scores[uid] = normalized_score
             else:
