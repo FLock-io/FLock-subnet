@@ -150,12 +150,18 @@ class Validator:
         bt.logging.info("Validator initialization complete")
 
         self.last_competition_hash = None
+        tempo = self.subtensor.tempo(self.config.netuid)
+        self.last_submitted_epoch = self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
+
         bt.logging.info("Validator ready to run")
 
     def should_set_weights(self) -> bool: 
         current_block = self.subtensor.get_current_block()
-        next_epoch_block = self.subtensor.get_next_epoch_block(self.config.netuid)
+        next_epoch_block = self.subtensor.get_next_epoch_start_block(self.config.netuid)
         blocks_to_epoch = next_epoch_block - current_block
+        if self.last_submitted_epoch == next_epoch_block: 
+            return False
+
         threshold = self.config.block_threshold
         return blocks_to_epoch <= threshold
 
@@ -434,17 +440,12 @@ class Validator:
         uids_py = self.metagraph.uids.tolist()
         weights_py = new_weights.tolist()
 
-        current_block = self.subtensor.get_current_block()
-        next_epoch_block = self.subtensor.get_next_epoch_block(self.config.netuid)
-        blocks_to_epoch = next_epoch_block - current_block
-        threshold = self.config.block_threshold
-
         if self.should_set_weights():
             bt.logging.info(
-                f"blocks to epoch: {blocks_to_epoch}, less than threshold: {threshold}"
+                f"blocks to epoch less than threshold"
             )
             bt.logging.info(
-                f"Setting weights on chain for netuid {self.config.netuid} with blocks to epoch: {blocks_to_epoch}"
+                f"Setting weights on chain for netuid {self.config.netuid}"
             )
             set_weights_with_err_msg(
                 subtensor=self.subtensor,
@@ -454,9 +455,13 @@ class Validator:
                 weights=weights_py,
                 wait_for_inclusion=True,
             )
+            next_epoch_block = self.subtensor.get_next_epoch_start_block(
+                self.config.netuid
+            )
+            self.last_submitted_epoch = next_epoch_block
         else:
             bt.logging.info(
-                f"Blocks to epoch ({blocks_to_epoch}) is greater than threshold ({threshold}), not setting weights"
+                f"Blocks to epoch is greater than threshold, not setting weights"
             )
 
     async def run(self):
