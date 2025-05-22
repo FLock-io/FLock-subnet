@@ -77,6 +77,13 @@ class Validator:
             help="Directory to store evaluation datasets.",
         )
 
+        parser.add_argument(
+            "--block_threshold", 
+            type=int,
+            default=50, 
+            help="Number of blocks before epoch end to set weights.",
+        )
+
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
         bt.wallet.add_args(parser)
@@ -383,14 +390,28 @@ class Validator:
         bt.logging.info("Setting weights on chain")
         uids_py = self.metagraph.uids.tolist()
         weights_py = new_weights.tolist()
-        set_weights_with_err_msg(
-            subtensor=self.subtensor,
-            wallet=self.wallet,
-            netuid=self.config.netuid,
-            uids=uids_py,
-            weights=weights_py,
-            wait_for_inclusion=True,
-        )
+
+        current_block = self.subtensor.get_current_block()
+        next_epoch_block = self.subtensor.get_next_epoch_block(self.config.netuid)
+        blocks_to_epoch = next_epoch_block - current_block
+        threshold = self.config.block_threshold
+
+        if blocks_to_epoch <= threshold: 
+            bt.logging.info(
+                f"Blocks to epoch ({blocks_to_epoch}) is less than threshold ({threshold}), setting weights"
+            )   
+            set_weights_with_err_msg(
+                subtensor=self.subtensor,
+                wallet=self.wallet,
+                netuid=self.config.netuid,
+                uids=uids_py,
+                weights=weights_py,
+                wait_for_inclusion=True,
+            )
+        else: 
+            bt.logging.info(
+                f"Blocks to epoch ({blocks_to_epoch}) is greater than threshold ({threshold}), not setting weights"
+            )   
 
     async def run(self):
         while True:
