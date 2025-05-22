@@ -55,7 +55,7 @@ class Validator:
         parser.add_argument(
             "--miner_sample_size",
             type=int,
-            default=3,
+            default=10,
             help="Number of miners to sample for each block.",
         )
         parser.add_argument("--netuid", type=int, required=True, help="The subnet UID.")
@@ -152,6 +152,14 @@ class Validator:
         self.last_competition_hash = None
         bt.logging.info("Validator ready to run")
 
+    def should_set_weights(self) -> bool: 
+        current_block = self.subtensor.get_current_block()
+        next_epoch_block = self.subtensor.get_next_epoch_block(self.config.netuid)
+        blocks_to_epoch = next_epoch_block - current_block
+        threshold = self.config.block_threshold
+        return blocks_to_epoch <= threshold
+
+
     async def try_sync_metagraph(self) -> bool:
         bt.logging.trace("Syncing metagraph")
         try:
@@ -235,6 +243,11 @@ class Validator:
             metadata = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
+
+            if self.should_set_weights(): 
+                bt.logging.info(
+                    f"approaching weight setting time for netuid {self.config.netuid}, breaking from eval loop"
+                )
             if metadata is not None:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
                 ns = metadata.id.namespace
@@ -426,9 +439,12 @@ class Validator:
         blocks_to_epoch = next_epoch_block - current_block
         threshold = self.config.block_threshold
 
-        if blocks_to_epoch <= threshold:
+        if self.should_set_weights():
             bt.logging.info(
-                f"Blocks to epoch ({blocks_to_epoch}) is less than threshold ({threshold}), setting weights"
+                f"blocks to epoch: {blocks_to_epoch}, less than threshold: {threshold}"
+            )
+            bt.logging.info(
+                f"Setting weights on chain for netuid {self.config.netuid} with blocks to epoch: {blocks_to_epoch}"
             )
             set_weights_with_err_msg(
                 subtensor=self.subtensor,
