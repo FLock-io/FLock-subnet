@@ -151,20 +151,21 @@ class Validator:
 
         self.last_competition_hash = None
         tempo = self.subtensor.tempo(self.config.netuid)
-        self.last_submitted_epoch = self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
+        self.last_submitted_epoch = (
+            self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
+        )
 
         bt.logging.info("Validator ready to run")
 
-    def should_set_weights(self) -> bool: 
+    def should_set_weights(self) -> bool:
         current_block = self.subtensor.get_current_block()
         next_epoch_block = self.subtensor.get_next_epoch_start_block(self.config.netuid)
         blocks_to_epoch = next_epoch_block - current_block
-        if self.last_submitted_epoch == next_epoch_block: 
+        if self.last_submitted_epoch == next_epoch_block:
             return False
 
         threshold = self.config.block_threshold
         return blocks_to_epoch <= threshold
-
 
     async def try_sync_metagraph(self) -> bool:
         bt.logging.trace("Syncing metagraph")
@@ -250,7 +251,7 @@ class Validator:
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
 
-            if self.should_set_weights(): 
+            if self.should_set_weights():
                 bt.logging.info(
                     f"approaching weight setting time for netuid {self.config.netuid}, breaking from eval loop"
                 )
@@ -441,12 +442,8 @@ class Validator:
         weights_py = new_weights.tolist()
 
         if self.should_set_weights():
-            bt.logging.info(
-                f"blocks to epoch less than threshold"
-            )
-            bt.logging.info(
-                f"Setting weights on chain for netuid {self.config.netuid}"
-            )
+            bt.logging.info(f"blocks to epoch less than threshold")
+            bt.logging.info(f"Setting weights on chain for netuid {self.config.netuid}")
             set_weights_with_err_msg(
                 subtensor=self.subtensor,
                 wallet=self.wallet,
