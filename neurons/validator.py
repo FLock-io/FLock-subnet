@@ -22,6 +22,10 @@ import typing
 import bittensor as bt
 import math
 import numpy as np
+import json
+import hashlib
+from dataclasses import asdict
+
 from flockoff import constants
 from flockoff.utils.chain import assert_registered, read_chain_commitment
 from flockoff.utils.git import check_latest_code
@@ -78,9 +82,9 @@ class Validator:
         )
 
         parser.add_argument(
-            "--block_threshold", 
+            "--block_threshold",
             type=int,
-            default=50, 
+            default=50,
             help="Number of blocks before epoch end to set weights.",
         )
 
@@ -145,6 +149,9 @@ class Validator:
         self.rng = np.random.default_rng()
         bt.logging.info("Validator initialization complete")
 
+        self.last_competition_hash = None
+        bt.logging.info("Validator ready to run")
+
     async def try_sync_metagraph(self) -> bool:
         bt.logging.trace("Syncing metagraph")
         try:
@@ -197,6 +204,16 @@ class Validator:
             bt.logging.error("Failed to read competition commitment")
             return
 
+        comp_dict = asdict(competition)
+        comp_hash = hashlib.sha256(
+            json.dumps(comp_dict, sort_keys=True).encode()
+        ).hexdigest()
+        competition_changed = False
+        if comp_hash != self.last_competition_hash:
+            bt.logging.info(f"Competition hash changed: {comp_hash}")
+            self.last_competition_hash = comp_hash
+            competition_changed = True
+
         eval_namespace = competition.repo
 
         bt.logging.info(f"Competition commitment: {competition}")
@@ -220,6 +237,17 @@ class Validator:
             )
             if metadata is not None:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
+                ns = metadata.id.namespace
+                revision = metadata.id.commit
+                last_rev = self.score_db.get_last_revision(ns)
+                bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
+                if not competition_changed and last_rev == revision:
+                    bt.logging.info(
+                        f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
+                    )
+                    scores_per_uid[uid] = self.score_db.get_score(uid)
+                    block_per_uid[uid] = metadata.block
+                    continue
                 try:
                     miner_data_dir = os.path.join(self.config.data_dir, f"miner_{uid}")
                     eval_data_dir = self.config.eval_data_dir
@@ -273,6 +301,8 @@ class Validator:
 
                     scores_per_uid[uid] = eval_loss
                     block_per_uid[uid] = metadata.block
+                    self.score_db.set_revision(ns, revision)
+
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
                 except Exception as e:
@@ -396,10 +426,10 @@ class Validator:
         blocks_to_epoch = next_epoch_block - current_block
         threshold = self.config.block_threshold
 
-        if blocks_to_epoch <= threshold: 
+        if blocks_to_epoch <= threshold:
             bt.logging.info(
                 f"Blocks to epoch ({blocks_to_epoch}) is less than threshold ({threshold}), setting weights"
-            )   
+            )
             set_weights_with_err_msg(
                 subtensor=self.subtensor,
                 wallet=self.wallet,
@@ -408,10 +438,10 @@ class Validator:
                 weights=weights_py,
                 wait_for_inclusion=True,
             )
-        else: 
+        else:
             bt.logging.info(
                 f"Blocks to epoch ({blocks_to_epoch}) is greater than threshold ({threshold}), not setting weights"
-            )   
+            )
 
     async def run(self):
         while True:
