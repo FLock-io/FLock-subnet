@@ -255,6 +255,8 @@ class Validator:
                 bt.logging.info(
                     f"approaching weight setting time for netuid {self.config.netuid}, breaking from eval loop"
                 )
+                break
+
             if metadata is not None:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
                 ns = metadata.id.namespace
