@@ -1,28 +1,14 @@
-[tool.poetry]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
 name = "FLock-subnet"
 version = "0.2.0"
 description = "FLock Subnet"
-authors = ["Flock Devs"]
+authors = [{name = "Flock Devs"}]
 readme = "README.md"
-packages = [
-    {include = "flockoff"},
-    {include = "neurons"}
-]
+requires-python = ">=3.10,<3.13"
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-bittensor = "^9.0.4"
-python-dotenv = "^1.0.1"
-huggingface-hub = "^0.29.3"
-pytest = "^8.3.5"
-torch = "^2.6.0"
-scipy = "^1.15.2"
-peft = "^0.15.0"
-trl = "^0.16.0"
-datasets = "^3.5.1"
-expecttest = "^0.3.0"
-hypothesis = "^6.131.9"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.hatch.build.targets.wheel]
+packages = ["flockoff", "neurons"]
