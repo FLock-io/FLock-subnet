@@ -9,7 +9,8 @@ from flockoff.utils.chain import read_chain_commitment
 import pytest
 
 # SUBNET_OWNER_KEY = "5DFcEniKrQRbCakLFGY3UqPL3ZbNnTQHp8LTvLfipWhE2Yfr"
-SUBNET_OWNER_KEY = "5FZGwrY9Ycz8m6fq5rpZCgoSrQWddb7SnZCr3rFU61auctG2"
+# SUBNET_OWNER_KEY = "5FZGwrY9Ycz8m6fq5rpZCgoSrQWddb7SnZCr3rFU61auctG2"
+SUBNET_OWNER_KEY = "5Cex1UGEN6GZBcSBkWXtrerQ6Zb7h8eD7oSe9eDyZmj4doWu"
 
 
 @pytest.fixture
@@ -36,12 +37,26 @@ def test_read_chain_commitment(node):
     ), f"Bench should be a float, got {type(comp.bench)}"
     assert isinstance(comp.rows, int), f"Rows should be an int, got {type(comp.rows)}"
     assert isinstance(comp.pow, int), f"Pow should be an int, got {type(comp.pow)}"
+    for attr in ("minb", "maxb", "bheight"):
+        assert isinstance(getattr(comp, attr), float), f"{attr} should be a float"
 
     assert comp.id, "ID should not be empty"
     assert comp.repo, "Repo should not be empty"
     assert comp.bench > 0, f"Bench should be positive, got {comp.bench}"
     assert comp.rows > 0, f"Rows should be positive, got {comp.rows}"
     assert comp.pow >= 0, f"Pow should be non-negative, got {comp.pow}"
+    assert comp.minb >= 0, f"Minb should be non-negative, got {comp.minb}"
+    assert comp.maxb >= 0, f"Maxb should be non-negative, got {comp.maxb}"
+    assert comp.bheight >= 0, f"Bheight should be non-negative, got {comp.bheight}"
+    assert (
+        comp.minb <= comp.maxb
+    ), f"Minb should be less than or equal to maxb, got {comp.minb} > {comp.maxb}"
+    assert (
+        comp.bheight <= comp.maxb
+    ), f"Bheight should be less than or equal to maxb, got {comp.bheight} > {comp.maxb}"
+    assert (
+        comp.bheight >= comp.minb
+    ), f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
 
     bt.logging.info(
         f"Commitment values: id={comp.id}, repo={comp.repo}, bench={comp.bench}, rows={comp.rows}, pow={comp.pow}"
