@@ -69,12 +69,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 2. Set up python environment and install dependencies: 
 
 ```bash
-# Create virtual environment (uses pyenv's Python if available)
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
 # Install dependencies
-uv pip install -r requirements.txt
+uv sync
 
 # Install the package in development mode
 uv pip install -e .
