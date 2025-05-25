@@ -78,6 +78,8 @@ def reset_gpu():
     """Reset GPU state and clear memory"""
     if torch.cuda.is_available():
         try:
+            # Synchronize to ensure all operations are completed
+            torch.cuda.synchronize()
             # Clear cache
             torch.cuda.empty_cache()
             # Reset device
