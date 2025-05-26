@@ -261,13 +261,13 @@ class Validator:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
                 ns = metadata.id.namespace
                 revision = metadata.id.commit
-                last_rev = self.score_db.get_last_revision(ns)
+                last_rev = self.score_db.get_revision(ns)
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
                 if not competition_changed and last_rev == revision:
                     bt.logging.info(
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
                     )
-                    scores_per_uid[uid] = self.score_db.get_score(uid)
+                    scores_per_uid[uid] = self.score_db.get_scores(uid)
                     block_per_uid[uid] = metadata.block
                     continue
                 try:
