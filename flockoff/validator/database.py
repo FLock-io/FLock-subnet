@@ -125,7 +125,8 @@ class ScoreDB:
         try:
             c = self.conn.cursor()
             c.execute("SELECT score FROM miner_scores WHERE uid = ?", (uid,))
-            return c.fetchone()[0]
+            result = c.fetchone()
+            return result[0] if result else 0.0
         except sqlite3.Error as e:
             logger.error(f"Failed to get score for UID {uid}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve score: {str(e)}") from e
