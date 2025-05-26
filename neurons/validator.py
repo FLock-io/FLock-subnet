@@ -389,7 +389,7 @@ class Validator:
         bt.logging.info("Normalizing scores")
         normalized_scores = {}
         for uid in uids_to_eval:
-            if scores_per_uid[uid] is not None and scores_per_uid[uid] != 0:
+            if scores_per_uid.get(uid):
                 bt.logging.debug(
                     f"Computing normalized score for UID {uid} with raw score {scores_per_uid[uid]}"
                 )
