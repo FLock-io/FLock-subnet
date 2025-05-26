@@ -197,7 +197,7 @@ class Validator:
             self.score_db.insert_or_reset_uid(uid, hotkeys[uid], base_score)
 
         bt.logging.info("Getting scores from database")
-        db_scores = self.score_db.get_score(current_uids)
+        db_scores = self.score_db.get_scores(current_uids)
 
         bt.logging.info("Setting weights tensor from database scores")
         self.weights = torch.tensor(db_scores, dtype=torch.float32)
@@ -267,7 +267,7 @@ class Validator:
                     bt.logging.info(
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
                     )
-                    scores_per_uid[uid] = self.score_db.get_scores(uid)
+                    scores_per_uid[uid] = self.score_db.get_score(uid)
                     block_per_uid[uid] = metadata.block
                     continue
                 try:
