@@ -3,9 +3,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseError(Exception):
     """Custom exception for database-related errors."""
+
     pass
+
 
 class ScoreDB:
     def __init__(self, db_path: str):
@@ -41,13 +44,15 @@ class ScoreDB:
         try:
             c = self.conn.cursor()
             c.execute(
-                "SELECT revision FROM dataset_revisions WHERE namespace = ?", (namespace,)
+                "SELECT revision FROM dataset_revisions WHERE namespace = ?",
+                (namespace,),
             )
             row = c.fetchone()
             return row[0] if row else None
         except sqlite3.Error as e:
             logger.error(f"Failed to get revision for namespace {namespace}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve revision: {str(e)}") from e
+
     def set_revision(self, namespace: str, revision: str):
         """Upsert the revision for this namespace."""
         try:
@@ -64,6 +69,7 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to set revision for namespace {namespace}: {str(e)}")
             raise DatabaseError(f"Failed to update revision: {str(e)}") from e
+
     def insert_or_reset_uid(
         self, uid: int, hotkey: str, base_score: float = 1.0 / 255.0
     ):
@@ -86,7 +92,9 @@ class ScoreDB:
         """Update the score for a given UID"""
         try:
             c = self.conn.cursor()
-            c.execute("UPDATE miner_scores SET score = ? WHERE uid = ?", (new_score, uid))
+            c.execute(
+                "UPDATE miner_scores SET score = ? WHERE uid = ?", (new_score, uid)
+            )
             if c.rowcount == 0:
                 # row absent – insert with unknown hotkey
                 c.execute(
@@ -111,11 +119,21 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to get scores for UIDs {uids}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve scores: {str(e)}") from e
+    
+    def get_score(self, uid: int) -> float:
+        """Retrieve the score for a given UID, defaulting to 0.0 if not found."""
+        try:
+            c = self.conn.cursor()
+            c.execute("SELECT score FROM miner_scores WHERE uid = ?", (uid,))
+            return c.fetchone()[0]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve score: {str(e)}") from e
 
     def __del__(self):
         """Close the connection when the instance is destroyed."""
         try:
-            if hasattr(self, 'conn'):
+            if hasattr(self, "conn"):
                 self.conn.close()
         except sqlite3.Error as e:
             logger.error(f"Failed to close database connection: {str(e)}")

@@ -58,19 +58,22 @@ git clone https://github.com/FLock-io/FLock-subnet.git
 cd FLock-subnet
 ```
 
-### Install dependencies with poetry
+### Install dependencies with uv
 
-1. Install Poetry:
+1. Install uv:
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install using Poetry:
+2. Set up python environment and install dependencies: 
 
 ```bash
-poetry install
-poetry shell
+# Install dependencies
+uv sync
+
+# Install the package in development mode
+uv pip install -e .
 ```
 
 ### Set up Hugging Face credentials

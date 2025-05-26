@@ -22,6 +22,10 @@ import typing
 import bittensor as bt
 import math
 import numpy as np
+import json
+import hashlib
+from dataclasses import asdict
+
 from flockoff import constants
 from flockoff.utils.chain import assert_registered, read_chain_commitment
 from flockoff.utils.git import check_latest_code
@@ -51,7 +55,7 @@ class Validator:
         parser.add_argument(
             "--miner_sample_size",
             type=int,
-            default=3,
+            default=10,
             help="Number of miners to sample for each block.",
         )
         parser.add_argument("--netuid", type=int, required=True, help="The subnet UID.")
@@ -75,6 +79,13 @@ class Validator:
             type=str,
             default="~/data/eval_data",
             help="Directory to store evaluation datasets.",
+        )
+
+        parser.add_argument(
+            "--block_threshold",
+            type=int,
+            default=50,
+            help="Number of blocks before epoch end to set weights.",
         )
 
         bt.subtensor.add_args(parser)
@@ -138,6 +149,24 @@ class Validator:
         self.rng = np.random.default_rng()
         bt.logging.info("Validator initialization complete")
 
+        self.last_competition_hash = None
+        tempo = self.subtensor.tempo(self.config.netuid)
+        self.last_submitted_epoch = (
+            self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
+        )
+
+        bt.logging.info("Validator ready to run")
+
+    def should_set_weights(self) -> bool:
+        current_block = self.subtensor.get_current_block()
+        next_epoch_block = self.subtensor.get_next_epoch_start_block(self.config.netuid)
+        blocks_to_epoch = next_epoch_block - current_block
+        if self.last_submitted_epoch == next_epoch_block:
+            return False
+
+        threshold = self.config.block_threshold
+        return blocks_to_epoch <= threshold
+
     async def try_sync_metagraph(self) -> bool:
         bt.logging.trace("Syncing metagraph")
         try:
@@ -168,7 +197,7 @@ class Validator:
             self.score_db.insert_or_reset_uid(uid, hotkeys[uid], base_score)
 
         bt.logging.info("Getting scores from database")
-        db_scores = self.score_db.get_scores(current_uids)
+        db_scores = self.score_db.get_score(current_uids)
 
         bt.logging.info("Setting weights tensor from database scores")
         self.weights = torch.tensor(db_scores, dtype=torch.float32)
@@ -189,6 +218,16 @@ class Validator:
         if competition is None:
             bt.logging.error("Failed to read competition commitment")
             return
+
+        comp_dict = asdict(competition)
+        comp_hash = hashlib.sha256(
+            json.dumps(comp_dict, sort_keys=True).encode()
+        ).hexdigest()
+        competition_changed = False
+        if comp_hash != self.last_competition_hash:
+            bt.logging.info(f"Competition hash changed: {comp_hash}")
+            self.last_competition_hash = comp_hash
+            competition_changed = True
 
         eval_namespace = competition.repo
 
@@ -211,8 +250,26 @@ class Validator:
             metadata = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
+
+            if self.should_set_weights():
+                bt.logging.info(
+                    f"approaching weight setting time for netuid {self.config.netuid}, breaking from eval loop"
+                )
+                break
+
             if metadata is not None:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
+                ns = metadata.id.namespace
+                revision = metadata.id.commit
+                last_rev = self.score_db.get_revision(ns)
+                bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
+                if not competition_changed and last_rev == revision:
+                    bt.logging.info(
+                        f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
+                    )
+                    scores_per_uid[uid] = self.score_db.get_scores(uid)
+                    block_per_uid[uid] = metadata.block
+                    continue
                 try:
                     miner_data_dir = os.path.join(self.config.data_dir, f"miner_{uid}")
                     eval_data_dir = self.config.eval_data_dir
@@ -266,6 +323,8 @@ class Validator:
 
                     scores_per_uid[uid] = eval_loss
                     block_per_uid[uid] = metadata.block
+                    self.score_db.set_revision(ns, revision)
+
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
                 except Exception as e:
@@ -330,7 +389,7 @@ class Validator:
         bt.logging.info("Normalizing scores")
         normalized_scores = {}
         for uid in uids_to_eval:
-            if scores_per_uid[uid] is not None and scores_per_uid[uid] != 0:
+            if scores_per_uid.get(uid):
                 bt.logging.debug(
                     f"Computing normalized score for UID {uid} with raw score {scores_per_uid[uid]}"
                 )
@@ -341,7 +400,14 @@ class Validator:
                     normalized_score = constants.DEFAULT_SCORE
                 else:
                     normalized_score = compute_score(
-                        scores_per_uid[uid], competition.bench, competition.pow
+                        scores_per_uid[uid],
+                        competition.bench,
+                        competition.minb,
+                        competition.maxb,
+                        competition.pow,
+                        competition.bheight,
+                        metadata.id.competition_id,
+                        competition.id,
                     )
                 normalized_scores[uid] = normalized_score
             else:
@@ -376,14 +442,26 @@ class Validator:
         bt.logging.info("Setting weights on chain")
         uids_py = self.metagraph.uids.tolist()
         weights_py = new_weights.tolist()
-        set_weights_with_err_msg(
-            subtensor=self.subtensor,
-            wallet=self.wallet,
-            netuid=self.config.netuid,
-            uids=uids_py,
-            weights=weights_py,
-            wait_for_inclusion=True,
-        )
+
+        if self.should_set_weights():
+            bt.logging.info(f"blocks to epoch less than threshold")
+            bt.logging.info(f"Setting weights on chain for netuid {self.config.netuid}")
+            set_weights_with_err_msg(
+                subtensor=self.subtensor,
+                wallet=self.wallet,
+                netuid=self.config.netuid,
+                uids=uids_py,
+                weights=weights_py,
+                wait_for_inclusion=True,
+            )
+            next_epoch_block = self.subtensor.get_next_epoch_start_block(
+                self.config.netuid
+            )
+            self.last_submitted_epoch = next_epoch_block
+        else:
+            bt.logging.info(
+                f"Blocks to epoch is greater than threshold, not setting weights"
+            )
 
     async def run(self):
         while True:
