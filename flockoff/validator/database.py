@@ -119,6 +119,16 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to get scores for UIDs {uids}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve scores: {str(e)}") from e
+    
+    def get_score(self, uid: int) -> float:
+        """Retrieve the score for a given UID, defaulting to 0.0 if not found."""
+        try:
+            c = self.conn.cursor()
+            c.execute("SELECT score FROM miner_scores WHERE uid = ?", (uid,))
+            return c.fetchone()[0]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve score: {str(e)}") from e
 
     def __del__(self):
         """Close the connection when the instance is destroyed."""
