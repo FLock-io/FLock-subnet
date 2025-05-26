@@ -80,3 +80,28 @@ def test_get_scores(db):
     assert len(scores) == 2, "Should return two scores"
     assert scores[0] == 10.0, "Existing UID 1 should have score 10.0"
     assert scores[1] == 0.0, "Non-existing UID 3 should have score 0.0"
+
+
+def test_get_score(db):
+    """Test retrieving a single score for a UID."""
+    # Test non-existing UID
+    score = db.get_score(1)
+    assert score == 0.0, "Non-existing UID should return 0.0"
+
+    # Insert UID and check score
+    db.insert_or_reset_uid(1, "hotkey1")
+    score = db.get_score(1)
+    assert score == pytest.approx(1.0 / 255.0), f"New UID should have score {1.0/255.0}"
+
+    # Update score and check
+    db.update_score(1, 5.0)
+    score = db.get_score(1)
+    assert score == 5.0, "Score should be updated to 5.0"
+
+    # Test with multiple UIDs
+    db.insert_or_reset_uid(2, "hotkey2")
+    db.update_score(2, 10.0)
+    score1 = db.get_score(1)
+    score2 = db.get_score(2)
+    assert score1 == 5.0, "UID 1 should have score 5.0"
+    assert score2 == 10.0, "UID 2 should have score 10.0"
