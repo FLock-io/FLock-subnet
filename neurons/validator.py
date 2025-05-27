@@ -329,6 +329,10 @@ class Validator:
 
                 except Exception as e:
                     bt.logging.error(f"train error: {e}")
+                    # If the error is related to CUDA, we should terminate the process
+                    if "CUDA" in str(e):
+                        bt.logging.error("CUDA error detected, terminating process")
+                        os._exit(1)
                     scores_per_uid[uid] = constants.DEFAULT_SCORE
                     block_per_uid[uid] = metadata.block
                     bt.logging.info(
