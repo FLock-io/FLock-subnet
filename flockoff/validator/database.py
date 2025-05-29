@@ -91,13 +91,21 @@ class ScoreDB:
             c = self.conn.cursor()
             c.execute("SELECT hotkey FROM miner_scores WHERE uid = ?", (uid,))
             result = c.fetchone()
-            if result is None or result[0] != hotkey:
-                # Insert new record or replace existing if hotkey changed for the UID
+            if result is None:
+                # UID doesn't exist, insert new record
                 c.execute(
-                    """INSERT OR REPLACE INTO miner_scores 
+                    """INSERT INTO miner_scores 
                          (uid, hotkey, raw_score, normalized_score) 
                          VALUES (?, ?, ?, ?)""",
                     (uid, hotkey, base_raw_score, initial_normalized_score),
+                )
+            elif result[0] != hotkey:
+                # UID exists but hotkey changed, update the existing row with new hotkey and reset scores
+                c.execute(
+                    """UPDATE miner_scores 
+                       SET hotkey = ?, raw_score = ?, normalized_score = ? 
+                       WHERE uid = ?""",
+                    (hotkey, base_raw_score, initial_normalized_score, uid),
                 )
             # If UID and hotkey match, we don't reset scores, assuming they are current.
             # Specific updates to raw_score or normalized_score will be handled by dedicated methods.
