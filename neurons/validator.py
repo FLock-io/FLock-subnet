@@ -1,14 +1,14 @@
 # The MIT License (MIT)
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
 # and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
 
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 # THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -242,6 +242,8 @@ class Validator:
 
         scores_per_uid = {}
         block_per_uid = {}
+        is_normalized_map = {}
+
         for uid in uids_to_eval:
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
@@ -265,9 +267,10 @@ class Validator:
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
                 if not competition_changed and last_rev == revision:
                     bt.logging.info(
-                        f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
+                        f"Skipping UID {uid} as it has already been evaluated with revision {revision}. Using stored normalized score."
                     )
                     scores_per_uid[uid] = self.score_db.get_score(uid)
+                    is_normalized_map[uid] = True
                     block_per_uid[uid] = metadata.block
                     continue
                 try:
@@ -322,6 +325,7 @@ class Validator:
                     bt.logging.info(f"Training complete with eval loss: {eval_loss}")
 
                     scores_per_uid[uid] = eval_loss
+                    is_normalized_map[uid] = False
                     block_per_uid[uid] = metadata.block
                     self.score_db.set_revision(ns, revision)
 
@@ -334,6 +338,7 @@ class Validator:
                         bt.logging.error("CUDA error detected, terminating process")
                         os._exit(1)
                     scores_per_uid[uid] = constants.DEFAULT_SCORE
+                    is_normalized_map[uid] = False
                     block_per_uid[uid] = metadata.block
                     bt.logging.info(
                         f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid} due to train error"
@@ -341,6 +346,7 @@ class Validator:
             else:
                 bt.logging.warning(f"No metadata found for UID {uid}")
                 scores_per_uid[uid] = 0
+                is_normalized_map[uid] = False
 
         duplicate_groups = []
         processed_uids = set()
@@ -386,43 +392,50 @@ class Validator:
             group.sort(key=lambda uid: block_per_uid[uid])
             bt.logging.info(f"Sorted by block: {group}")
 
-            for uid in group[1:]:
-                duplicates.add(uid)
-                scores_per_uid[uid] = constants.DEFAULT_SCORE
+            for uid_penalized in group[1:]:
+                duplicates.add(uid_penalized)
+                scores_per_uid[uid_penalized] = constants.DEFAULT_SCORE
+                is_normalized_map[uid_penalized] = False
 
-        bt.logging.info("Normalizing scores")
-        normalized_scores = {}
-        for uid in uids_to_eval:
-            if scores_per_uid.get(uid):
-                bt.logging.debug(
-                    f"Computing normalized score for UID {uid} with raw score {scores_per_uid[uid]}"
-                )
+        bt.logging.info("Normalizing scores where necessary")
+        final_normalized_scores = {}
+        for uid_to_process in uids_to_eval:
+            score_value = scores_per_uid.get(uid_to_process)
+
+            if score_value is None:
+                bt.logging.warning(f"UID {uid_to_process} has no score in scores_per_uid. Defaulting to 0.")
+                score_value = 0.0
+                is_normalized_map[uid_to_process] = False
+
+            if is_normalized_map.get(uid_to_process, False):
+                final_normalized_scores[uid_to_process] = score_value
+            else:
+                current_uid_metadata = retrieve_model_metadata(self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_to_process])
+                miner_comp_id = current_uid_metadata.id.competition_id if current_uid_metadata and current_uid_metadata.id else None
+
                 if competition.bench is None or competition.bench <= 0:
                     bt.logging.warning(
-                        f"Invalid benchmark ({competition.bench}) for UID {uid}; defaulting score to 0"
+                        f"Invalid benchmark ({competition.bench}) for UID {uid_to_process}; defaulting score to 0"
                     )
-                    normalized_score = constants.DEFAULT_SCORE
+                    final_normalized_scores[uid_to_process] = 0.0
                 else:
-                    normalized_score = compute_score(
-                        scores_per_uid[uid],
+                    final_normalized_scores[uid_to_process] = compute_score(
+                        score_value,
                         competition.bench,
                         competition.minb,
                         competition.maxb,
                         competition.pow,
                         competition.bheight,
-                        metadata.id.competition_id,
+                        miner_comp_id,
                         competition.id,
                     )
-                normalized_scores[uid] = normalized_score
-            else:
-                bt.logging.debug(f"Setting zero normalized score for UID {uid}")
-                normalized_scores[uid] = 0
-        bt.logging.debug(f"Normalized scores: {normalized_scores}")
+        bt.logging.debug(f"Final normalized scores for step: {final_normalized_scores}")
 
-        bt.logging.info("Creating new weights tensor")
+        bt.logging.info("Creating new weights tensor for chain setting")
         new_weights = self.weights.clone()
-        for uid, score in normalized_scores.items():
-            new_weights[uid] = score
+        for uid, score_val in final_normalized_scores.items():
+            if 0 <= uid < len(new_weights):
+                new_weights[uid] = score_val
 
         new_weights = torch.where(
             new_weights < constants.MIN_WEIGHT_THRESHOLD,
@@ -433,11 +446,11 @@ class Validator:
             f"Thresholded weights (min {constants.MIN_WEIGHT_THRESHOLD}): {new_weights}"
         )
 
-        bt.logging.info("Updating database with score deltas")
-        for uid in uids_to_eval:
-            if uid < len(new_weights):
-                final_weight = new_weights[uid].item()
-                self.score_db.update_score(uid, final_weight)
+        bt.logging.info("Updating database with final normalized scores")
+        for uid_in_eval_list in uids_to_eval:
+            if uid_in_eval_list < len(new_weights):
+                final_score_for_db = new_weights[uid_in_eval_list].item()
+                self.score_db.update_score(uid_in_eval_list, final_score_for_db)
 
         self.weights = new_weights
         bt.logging.debug(f"New weights: {new_weights}")
