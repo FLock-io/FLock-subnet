@@ -373,7 +373,7 @@ class Validator:
                     and score_j not in (None, 0, constants.DEFAULT_SCORE)
                     and uid_j not in processed_uids
                 ):
-                    if math.isclose(score_i, score_j, rel_tol=1e-9):
+                    if math.isclose(score_i, score_j, rel_tol=1e-5):
                         bt.logging.debug(
                             f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
                         )

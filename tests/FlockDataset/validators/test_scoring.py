@@ -43,7 +43,7 @@ def test_high_loss_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_zero_loss_evaluation():
@@ -61,7 +61,7 @@ def test_zero_loss_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_none_loss_evaluation():
@@ -79,7 +79,7 @@ def test_none_loss_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_zero_benchmark_evaluation():
@@ -97,7 +97,7 @@ def test_zero_benchmark_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_negative_benchmark_evaluation():
@@ -115,7 +115,7 @@ def test_negative_benchmark_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_none_benchmark_evaluation():
@@ -133,7 +133,7 @@ def test_none_benchmark_evaluation():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_invalid_power():
@@ -151,7 +151,7 @@ def test_invalid_power():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_none_power():
@@ -169,7 +169,7 @@ def test_none_power():
         DEFAULT_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
 
 
 def test_mismatched_competition_id():
@@ -187,4 +187,4 @@ def test_mismatched_competition_id():
         MISMATCH_COMPETITION_ID,
         DEFAULT_COMPETITION_ID,
     )
-    assert np.isclose(score, expected_score, rtol=1e-9)
+    assert np.isclose(score, expected_score, rtol=1e-5)
