@@ -21,12 +21,16 @@ class ScoreDB:
             raise DatabaseError(f"Database initialization failed: {str(e)}") from e
 
     def _init_db(self):
-        """Initialize the database with a table to store UID, hotkey, and score."""
+        """Initialize the database with a table to store UID, hotkey, raw_score, and normalized_score."""
         try:
             c = self.conn.cursor()
             c.execute(
                 """CREATE TABLE IF NOT EXISTS miner_scores
-                         (uid INTEGER, hotkey TEXT, score REAL, PRIMARY KEY (uid, hotkey))"""
+                         (uid INTEGER, 
+                          hotkey TEXT, 
+                          raw_score REAL, 
+                          normalized_score REAL, 
+                          PRIMARY KEY (uid, hotkey))"""
             )
 
             c.execute(
@@ -71,65 +75,116 @@ class ScoreDB:
             raise DatabaseError(f"Failed to update revision: {str(e)}") from e
 
     def insert_or_reset_uid(
-        self, uid: int, hotkey: str, base_score: float = 1.0 / 255.0
+        self, uid: int, hotkey: str, base_raw_score: float = 0.0, initial_normalized_score: float = 1.0 / 255.0
     ):
-        """Insert a new UID or reset its score if the hotkey has changed (UID recycled)."""
+        """Insert a new UID or reset its scores if the hotkey has changed (UID recycled).
+        
+        Args:
+            uid (int): The UID of the miner.
+            hotkey (str): The hotkey of the miner.
+            base_raw_score (float, optional): The initial raw score to set. 
+                                             Defaults to 0.0 if not provided by the caller.
+            initial_normalized_score (float, optional): The initial normalized score (weight).
+                                                        Defaults to 1.0 / 255.0 if not provided by the caller.
+        """
         try:
             c = self.conn.cursor()
             c.execute("SELECT hotkey FROM miner_scores WHERE uid = ?", (uid,))
             result = c.fetchone()
-            if result is None or result[0] != hotkey:
+            if result is None:
+                # UID doesn't exist, insert new record
                 c.execute(
-                    "INSERT OR REPLACE INTO miner_scores (uid, hotkey, score) VALUES (?, ?, ?)",
-                    (uid, hotkey, base_score),
+                    """INSERT INTO miner_scores 
+                         (uid, hotkey, raw_score, normalized_score) 
+                         VALUES (?, ?, ?, ?)""",
+                    (uid, hotkey, base_raw_score, initial_normalized_score),
                 )
+            elif result[0] != hotkey:
+                # UID exists but hotkey changed, update the existing row with new hotkey and reset scores
+                c.execute(
+                    """UPDATE miner_scores 
+                       SET hotkey = ?, raw_score = ?, normalized_score = ? 
+                       WHERE uid = ?""",
+                    (hotkey, base_raw_score, initial_normalized_score, uid),
+                )
+            # If UID and hotkey match, we don't reset scores, assuming they are current.
+            # Specific updates to raw_score or normalized_score will be handled by dedicated methods.
             self.conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to insert/reset UID {uid}: {str(e)}")
             raise DatabaseError(f"Failed to insert/reset UID: {str(e)}") from e
 
-    def update_score(self, uid: int, new_score: float):
-        """Update the score for a given UID"""
+    def update_raw_eval_score(self, uid: int, new_raw_score: float):
+        """Update the raw evaluation score for a given UID."""
         try:
             c = self.conn.cursor()
             c.execute(
-                "UPDATE miner_scores SET score = ? WHERE uid = ?", (new_score, uid)
+                "UPDATE miner_scores SET raw_score = ? WHERE uid = ?", (new_raw_score, uid)
             )
             if c.rowcount == 0:
-                # row absent – insert with unknown hotkey
-                c.execute(
-                    "INSERT INTO miner_scores (uid, hotkey, score) VALUES (?, '', ?)",
-                    (uid, new_score),
-                )
+                # If somehow a UID is being updated that wasn't inserted, log a warning or error.
+                logger.warning(f"Attempted to update raw_score for non-existent UID {uid}, no changes made.")
             self.conn.commit()
         except sqlite3.Error as e:
-            logger.error(f"Failed to update score for UID {uid}: {str(e)}")
-            raise DatabaseError(f"Failed to update score: {str(e)}") from e
+            logger.error(f"Failed to update raw_score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to update raw_score: {str(e)}") from e
 
-    def get_scores(self, uids: list) -> list:
-        """Retrieve scores for a list of UIDs, defaulting to 0.0 if not found."""
+    def update_final_normalized_score(self, uid: int, new_normalized_score: float):
+        """Update the final normalized score for a given UID."""
         try:
             c = self.conn.cursor()
             c.execute(
-                f"SELECT uid, score FROM miner_scores WHERE uid IN ({','.join('?'*len(uids))})",
-                uids,
+                "UPDATE miner_scores SET normalized_score = ? WHERE uid = ?", (new_normalized_score, uid)
             )
-            scores_dict = {uid: score for uid, score in c.fetchall()}
-            return [scores_dict.get(uid, 0.0) for uid in uids]
+            if c.rowcount == 0:
+                logger.warning(f"Attempted to update normalized_score for non-existent UID {uid}, no changes made.")
+            self.conn.commit()
         except sqlite3.Error as e:
-            logger.error(f"Failed to get scores for UIDs {uids}: {str(e)}")
-            raise DatabaseError(f"Failed to retrieve scores: {str(e)}") from e
-    
-    def get_score(self, uid: int) -> float:
-        """Retrieve the score for a given UID, defaulting to 0.0 if not found."""
+            logger.error(f"Failed to update normalized_score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to update normalized_score: {str(e)}") from e
+
+    def get_raw_eval_score(self, uid: int) -> float | None:
+        """Retrieve the raw evaluation score for a given UID, defaulting to None if not found."""
         try:
             c = self.conn.cursor()
-            c.execute("SELECT score FROM miner_scores WHERE uid = ?", (uid,))
+            c.execute("SELECT raw_score FROM miner_scores WHERE uid = ?", (uid,))
+            result = c.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get raw_score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve raw_score: {str(e)}") from e
+
+    def get_all_normalized_scores(self, uids: list) -> list:
+        """Retrieve normalized scores for a list of UIDs, defaulting to 0.0 if not found."""
+        # This replaces the old get_scores for the purpose of initializing weights.
+        try:
+            c = self.conn.cursor()
+            # Ensure there are UIDs to prevent empty IN clause
+            if not uids:
+                return []
+            
+            placeholders = ','.join('?' * len(uids))
+            c.execute(
+                f"SELECT uid, normalized_score FROM miner_scores WHERE uid IN ({placeholders})",
+                uids,
+            )
+            scores_dict = {uid_val: score for uid_val, score in c.fetchall()}
+            # Default to 0.0 for UIDs not found in the database
+            return [scores_dict.get(uid_val, 0.0) for uid_val in uids]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get normalized_scores for UIDs {uids}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve normalized_scores: {str(e)}") from e
+    
+    def get_normalized_score(self, uid: int) -> float:
+        """Retrieve the normalized score for a given UID, defaulting to 0.0 if not found."""
+        try:
+            c = self.conn.cursor()
+            c.execute("SELECT normalized_score FROM miner_scores WHERE uid = ?", (uid,))
             result = c.fetchone()
             return result[0] if result else 0.0
         except sqlite3.Error as e:
-            logger.error(f"Failed to get score for UID {uid}: {str(e)}")
-            raise DatabaseError(f"Failed to retrieve score: {str(e)}") from e
+            logger.error(f"Failed to get normalized_score for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve normalized_score: {str(e)}") from e
 
     def __del__(self):
         """Close the connection when the instance is destroyed."""
