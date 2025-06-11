@@ -425,13 +425,28 @@ class Validator:
                 normalized_scores_this_epoch[uid] = 0
         bt.logging.debug(f"Normalized scores for this epoch: {normalized_scores_this_epoch}")
 
-        bt.logging.info("Creating new weights tensor based on this epoch's normalized scores")
+        bt.logging.info("Creating new weights tensor preserving database weights for non-evaluated miners")
         new_weights = self.weights.clone()
+        
+        # Update weights for only evaluated miners
         for uid, norm_score in normalized_scores_this_epoch.items():
             if uid < len(new_weights):
                 new_weights[uid] = norm_score
             else:
                 bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
+        
+        # For non-evaluated miners, preserve their database weights
+        non_evaluated_count = 0
+        for uid in current_uids:
+            if uid not in normalized_scores_this_epoch and uid < len(new_weights):
+                db_weight = new_weights[uid].item()
+                if db_weight > 0:
+                    bt.logging.debug(f"Preserving database weight {db_weight:.6f} for non-evaluated UID {uid}")
+                    non_evaluated_count += 1
+                else:
+                    bt.logging.debug(f"Non-evaluated UID {uid} has zero database weight, keeping as 0")
+        
+        bt.logging.info(f"Preserved database weights for {non_evaluated_count} non-evaluated miners")
 
         new_weights = torch.where(
             new_weights < constants.MIN_WEIGHT_THRESHOLD,
@@ -443,10 +458,17 @@ class Validator:
         )
 
         bt.logging.info("Updating database with final normalized scores (weights)")
-        for uid in uids_to_eval:
+        # Update database for all current UIDs, not just evaluated ones
+        for uid in current_uids:
             if uid < len(new_weights):
                 final_normalized_weight = new_weights[uid].item()
                 self.score_db.update_final_normalized_score(uid, final_normalized_weight)
+                if uid in normalized_scores_this_epoch:
+                    bt.logging.debug(f"Updated database weight for evaluated UID {uid}: {final_normalized_weight:.6f}")
+                else:
+                    bt.logging.debug(f"Updated database weight for non-evaluated UID {uid}: {final_normalized_weight:.6f} (preserved)")
+            else:
+                bt.logging.warning(f"UID {uid} out of bounds for weight tensor, skipping database update")
 
         self.weights = new_weights
         bt.logging.debug(f"Updated self.weights: {self.weights}")
