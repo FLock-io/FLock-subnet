@@ -1,3 +1,4 @@
+import json
 import bittensor as bt
 import numpy as np
 from flockoff import constants
@@ -81,3 +82,12 @@ def compute_score(
         numerator = -(bench_height) * np.pow(loss - benchmark_loss, power)
         denominator = np.pow((max_bench - benchmark_loss), power)
         return numerator / denominator + bench_height
+
+def load_jsonl(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return [json.loads(line.strip()) for line in f if line.strip()]
+
+def count_similar(jsonl1, jsonl2):
+    set1 = set(json.dumps(item, sort_keys=True) for item in jsonl1)
+    set2 = set(json.dumps(item, sort_keys=True) for item in jsonl2)
+    return len(set1 & set2)

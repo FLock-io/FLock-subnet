@@ -33,7 +33,7 @@ from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
 )
-from flockoff.validator.validator_utils import compute_score
+from flockoff.validator.validator_utils import compute_score, load_jsonl, count_similar
 from flockoff.validator.trainer import (
     train_lora,
     download_dataset,
@@ -366,14 +366,31 @@ class Validator:
                 )
                 continue
 
+            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            eval_data_dir = self.config.eval_data_dir
+
+            eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
+            miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+
+            if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_SCORE)
+                bt.logging.info(
+                    f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid_i} due to the "
+                    f"miner dataset is not entirely from the evaluate dataset"
+                )
+                continue
+
             similar_uids = [uid_i]
             for uid_j, score_j in raw_scores_this_epoch.items():
                 if (
-                    uid_i != uid_j
-                    and score_j not in (None, 0, constants.DEFAULT_SCORE)
-                    and uid_j not in processed_uids
+                        uid_i != uid_j
+                        and score_j not in (None, 0, constants.DEFAULT_SCORE)
+                        and uid_j not in processed_uids
                 ):
-                    if math.isclose(score_i, score_j, rel_tol=1e-5):
+                    miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
+                    miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
                         bt.logging.debug(
                             f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
                         )

@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).parent.parent
 DECAY_RATE = 1
 MIN_WEIGHT_THRESHOLD = 1e-6
 DEFAULT_SCORE = 0.0
-
+DEFAULT_DUPLICATE_COUNT = 50
 
 def get_subnet_owner(is_testnet: bool = False) -> str:
     """
