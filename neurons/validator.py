@@ -377,7 +377,7 @@ class Validator:
                 self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_SCORE)
                 bt.logging.info(
                     f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid_i} due to the "
-                    f"miner dataset is not entirely from the evaluate dataset"
+                    f"miner dataset is not entirely from the evaluation dataset"
                 )
                 continue
 
