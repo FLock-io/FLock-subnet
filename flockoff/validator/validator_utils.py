@@ -26,7 +26,7 @@ def compute_score(
     Returns:
         float: Score value between 0 and 1
     """
-    if loss is None:
+    if loss is None or loss == 0 or loss == constants.DEFAULT_SCORE:
         bt.logging.warning("Loss is None, returning score of 0")
         return 0
 

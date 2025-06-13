@@ -438,8 +438,9 @@ class Validator:
                     )
                 normalized_scores_this_epoch[uid] = normalized_score
             else:
-                bt.logging.debug(f"Setting zero normalized score for UID {uid} as raw score was missing")
-                normalized_scores_this_epoch[uid] = 0
+                # It’s possibly due to the should_set_weights function causing data loss
+                bt.logging.debug(f"Save the original score for UID {uid} as raw score was missing")
+                # normalized_scores_this_epoch[uid] = self.weights[uid]
         bt.logging.debug(f"Normalized scores for this epoch: {normalized_scores_this_epoch}")
 
         bt.logging.info("Creating new weights tensor based on this epoch's normalized scores")
