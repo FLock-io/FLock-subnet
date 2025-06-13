@@ -193,7 +193,7 @@ class Validator:
         bt.logging.info(f"Current UIDs: {current_uids}")
 
         # Explicitly setting initial scores for new/reset UIDs.
-        # base_raw_score is set to constants.DEFAULT_SCORE (0.0), representing no prior evaluation.
+        # base_raw_score is set to constants.DEFAULT_RAW_SCORE (999), representing no prior evaluation.
         base_raw_score = constants.DEFAULT_RAW_SCORE
         # initial_normalized_score is set to a small non-zero value (1.0 / 255.0) 
         # to serve as a minimal starting weight for new miners.

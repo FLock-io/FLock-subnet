@@ -32,37 +32,37 @@ def compute_score(
 
     if power is None or power <= 0:
         bt.logging.warning("Power is None or negative, returning score of 0")
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if real_comp_id is None:
         bt.logging.error(
             f"Invalid real_comp_id ({real_comp_id}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if miner_comp_id != real_comp_id:
         bt.logging.error(
             f"Miner commitment ID ({miner_comp_id}) does not match real commitment ID ({real_comp_id}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if benchmark_loss is None or benchmark_loss <= 0:
         bt.logging.error(
             f"Invalid benchmark_loss ({benchmark_loss}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if min_bench is None or max_bench is None:
         bt.logging.error(
             f"Invalid min_bench ({min_bench}) or max_bench ({max_bench}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if min_bench >= max_bench:
         bt.logging.error(
             f"Invalid min_bench ({min_bench}) >= max_bench ({max_bench}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if loss < min_bench:
         return 1.0
