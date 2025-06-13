@@ -33,7 +33,7 @@ from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
 )
-from flockoff.validator.validator_utils import compute_score
+from flockoff.validator.validator_utils import compute_score, load_jsonl, count_similar
 from flockoff.validator.trainer import (
     train_lora,
     download_dataset,
@@ -193,8 +193,8 @@ class Validator:
         bt.logging.info(f"Current UIDs: {current_uids}")
 
         # Explicitly setting initial scores for new/reset UIDs.
-        # base_raw_score is set to constants.DEFAULT_SCORE (0.0), representing no prior evaluation.
-        base_raw_score = constants.DEFAULT_SCORE 
+        # base_raw_score is set to constants.DEFAULT_RAW_SCORE (999), representing no prior evaluation.
+        base_raw_score = constants.DEFAULT_RAW_SCORE
         # initial_normalized_score is set to a small non-zero value (1.0 / 255.0) 
         # to serve as a minimal starting weight for new miners.
         initial_normalized_score = 1.0 / 255.0 
@@ -273,7 +273,7 @@ class Validator:
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
                     )
                     retrieved_raw_score = self.score_db.get_raw_eval_score(uid)
-                    raw_scores_this_epoch[uid] = retrieved_raw_score if retrieved_raw_score is not None else constants.DEFAULT_SCORE
+                    raw_scores_this_epoch[uid] = retrieved_raw_score if retrieved_raw_score is not None else constants.DEFAULT_RAW_SCORE
                     block_per_uid[uid] = metadata.block
                     continue
                 try:
@@ -339,16 +339,16 @@ class Validator:
                     if "CUDA" in str(e):
                         bt.logging.error("CUDA error detected, terminating process")
                         os._exit(1)
-                    raw_scores_this_epoch[uid] = constants.DEFAULT_SCORE
+                    raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
                     block_per_uid[uid] = metadata.block
-                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_SCORE)
+                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
                     bt.logging.info(
-                        f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid} due to train error"
+                        f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid} due to train error"
                     )
             else:
                 bt.logging.warning(f"No metadata found for UID {uid}")
-                raw_scores_this_epoch[uid] = 0
-                self.score_db.update_raw_eval_score(uid, 0)
+                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
         duplicate_groups = []
         processed_uids = set()
@@ -357,8 +357,7 @@ class Validator:
         for uid_i, score_i in raw_scores_this_epoch.items():
             if (
                 score_i is None
-                or score_i == 0
-                or score_i == constants.DEFAULT_SCORE
+                or score_i == constants.DEFAULT_RAW_SCORE
                 or uid_i in processed_uids
             ):
                 bt.logging.debug(
@@ -366,14 +365,31 @@ class Validator:
                 )
                 continue
 
+            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            eval_data_dir = self.config.eval_data_dir
+
+            eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
+            miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+
+            if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                bt.logging.info(
+                    f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid_i} due to the "
+                    f"miner dataset is not entirely from the evaluation dataset"
+                )
+                continue
+
             similar_uids = [uid_i]
             for uid_j, score_j in raw_scores_this_epoch.items():
                 if (
-                    uid_i != uid_j
-                    and score_j not in (None, 0, constants.DEFAULT_SCORE)
-                    and uid_j not in processed_uids
+                        uid_i != uid_j
+                        and score_j not in (None, constants.DEFAULT_RAW_SCORE)
+                        and uid_j not in processed_uids
                 ):
-                    if math.isclose(score_i, score_j, rel_tol=1e-5):
+                    miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
+                    miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
                         bt.logging.debug(
                             f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
                         )
@@ -392,8 +408,8 @@ class Validator:
 
             for uid in group[1:]:
                 duplicates.add(uid)
-                raw_scores_this_epoch[uid] = constants.DEFAULT_SCORE
-                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_SCORE)
+                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
         bt.logging.info("Normalizing raw scores")
         normalized_scores_this_epoch = {}
@@ -407,7 +423,7 @@ class Validator:
                     bt.logging.warning(
                         f"Invalid benchmark ({competition.bench}) for UID {uid}; defaulting score to 0"
                     )
-                    normalized_score = constants.DEFAULT_SCORE
+                    normalized_score = constants.DEFAULT_NORMALIZED_SCORE
                 else:
                     normalized_score = compute_score(
                         current_raw_score,
@@ -421,8 +437,9 @@ class Validator:
                     )
                 normalized_scores_this_epoch[uid] = normalized_score
             else:
-                bt.logging.debug(f"Setting zero normalized score for UID {uid} as raw score was missing")
-                normalized_scores_this_epoch[uid] = 0
+                # It’s possibly due to the should_set_weights function causing data loss
+                bt.logging.debug(f"Save the original score for UID {uid} as raw score was missing")
+                # normalized_scores_this_epoch[uid] = self.weights[uid]
         bt.logging.debug(f"Normalized scores for this epoch: {normalized_scores_this_epoch}")
 
         bt.logging.info("Creating new weights tensor based on this epoch's normalized scores")
