@@ -247,6 +247,7 @@ class Validator:
 
         raw_scores_this_epoch = {}
         block_per_uid = {}
+        metadata_per_uid = {}  # Track metadata for each UID
         for uid in uids_to_eval:
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
@@ -255,6 +256,7 @@ class Validator:
             metadata = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
+            metadata_per_uid[uid] = metadata  # Store metadata for this UID
 
             if self.should_set_weights():
                 bt.logging.info(
@@ -368,8 +370,21 @@ class Validator:
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
             eval_data_dir = self.config.eval_data_dir
 
-            eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
-            miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+            try:
+                eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
+                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+            except FileNotFoundError as e:
+                bt.logging.warning(f"Data file not found for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to missing data file")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+            except Exception as e:
+                bt.logging.error(f"Error loading data files for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to data loading error")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
 
             if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
                 raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
@@ -388,7 +403,15 @@ class Validator:
                         and uid_j not in processed_uids
                 ):
                     miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
-                    miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    try:
+                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    except FileNotFoundError as e:
+                        bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
+                        continue
+                    except Exception as e:
+                        bt.logging.error(f"Error loading data file for UID {uid_j} during duplicate check: {e}")
+                        continue
+                        
                     if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
                         bt.logging.debug(
                             f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
@@ -425,6 +448,14 @@ class Validator:
                     )
                     normalized_score = constants.DEFAULT_NORMALIZED_SCORE
                 else:
+                    # Get the metadata for this specific UID
+                    uid_metadata = metadata_per_uid.get(uid)
+                    if uid_metadata is not None and uid_metadata.id is not None:
+                        competition_id = uid_metadata.id.competition_id
+                    else:
+                        bt.logging.warning(f"No metadata found for UID {uid} during normalization, using None for competition_id")
+                        competition_id = None
+                    
                     normalized_score = compute_score(
                         current_raw_score,
                         competition.bench,
@@ -432,12 +463,12 @@ class Validator:
                         competition.maxb,
                         competition.pow,
                         competition.bheight,
-                        metadata.id.competition_id,
+                        competition_id,
                         competition.id,
                     )
                 normalized_scores_this_epoch[uid] = normalized_score
             else:
-                # It’s possibly due to the should_set_weights function causing data loss
+                # It's possibly due to the should_set_weights function causing data loss
                 bt.logging.debug(f"Save the original score for UID {uid} as raw score was missing")
                 # normalized_scores_this_epoch[uid] = self.weights[uid]
         bt.logging.debug(f"Normalized scores for this epoch: {normalized_scores_this_epoch}")
