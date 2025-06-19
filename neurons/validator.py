@@ -33,7 +33,7 @@ from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
 )
-from flockoff.validator.validator_utils import compute_score
+from flockoff.validator.validator_utils import compute_score, load_jsonl, count_similar
 from flockoff.validator.trainer import (
     train_lora,
     download_dataset,
@@ -193,8 +193,8 @@ class Validator:
         bt.logging.info(f"Current UIDs: {current_uids}")
 
         # Explicitly setting initial scores for new/reset UIDs.
-        # base_raw_score is set to constants.DEFAULT_SCORE (0.0), representing no prior evaluation.
-        base_raw_score = constants.DEFAULT_SCORE 
+        # base_raw_score is set to constants.DEFAULT_RAW_SCORE (999), representing no prior evaluation.
+        base_raw_score = constants.DEFAULT_RAW_SCORE
         # initial_normalized_score is set to a small non-zero value (1.0 / 255.0) 
         # to serve as a minimal starting weight for new miners.
         initial_normalized_score = 1.0 / 255.0 
@@ -247,7 +247,157 @@ class Validator:
 
         raw_scores_this_epoch = {}
         block_per_uid = {}
+        metadata_per_uid = {}  # Track metadata for each UID
+
+        duplicate_groups = []
+        processed_uids = set()
+        bt.logging.info("Checking for duplicate scores using raw scores")
+        for uid_i in uids_to_eval:
+
+            metadata_i = retrieve_model_metadata(
+                self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
+            )
+
+            if metadata_i is None:
+                bt.logging.debug(
+                    f"Skipping UID {uid_i}  (metadata is None)"
+                )
+                continue
+            metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
+            block_per_uid[uid_i] = metadata_i.block
+            if uid_i in processed_uids:
+                bt.logging.debug(
+                    f"Skipping UID {uid_i}  (None, zero, or already processed)"
+                )
+                continue
+
+            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            eval_data_dir = self.config.eval_data_dir
+
+            try:
+                bt.logging.info(f"Using data directory: {miner_i_data_dir}")
+                bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
+
+                os.makedirs(miner_i_data_dir, exist_ok=True)
+                os.makedirs(eval_data_dir, exist_ok=True)
+
+                bt.logging.info(
+                    f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
+                )
+
+                download_dataset(
+                    metadata_i.id.namespace,
+                    metadata_i.id.commit,
+                    local_dir=miner_i_data_dir,
+                    cache_dir=self.config.cache_dir,
+                )
+
+                bt.logging.info(
+                    f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
+                )
+
+                download_dataset(
+                    eval_namespace,
+                    constants.eval_commit,
+                    local_dir=eval_data_dir,
+                    cache_dir=self.config.cache_dir,
+                )
+
+                for fname in os.listdir(eval_data_dir):
+                    if fname.endswith(".jsonl"):
+                        src = os.path.join(eval_data_dir, fname)
+                        dst = os.path.join(eval_data_dir, "data.jsonl")
+                        if src != dst:
+                            os.replace(src, dst)
+                            bt.logging.info(f"Renamed {fname} → data.jsonl")
+
+                eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
+                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+            except FileNotFoundError as e:
+                bt.logging.warning(f"Data file not found for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to missing data file")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+            except Exception as e:
+                bt.logging.error(f"Error loading data files for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to data loading error")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+
+            if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                bt.logging.info(
+                    f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid_i} due to the "
+                    f"miner dataset is not entirely from the evaluation dataset"
+                )
+                continue
+
+            similar_uids = [uid_i]
+            for uid_j in uids_to_eval:
+                if (
+                        uid_i != uid_j
+                        and uid_j not in processed_uids
+                ):
+                    miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
+                    metadata_j = retrieve_model_metadata(
+                        self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_j]
+                    )
+                    if metadata_j is None:
+                        bt.logging.debug(
+                            f"Skipping UID {uid_j}  (metadata is None)"
+                        )
+                        continue
+                    try:
+                        bt.logging.info(f"Using data directory: {miner_j_data_dir}")
+                        os.makedirs(miner_j_data_dir, exist_ok=True)
+                        bt.logging.info(
+                            f"Downloading training dataset: {metadata_j.id.namespace}/{metadata_j.id.commit}"
+                        )
+                        download_dataset(
+                            metadata_j.id.namespace,
+                            metadata_j.id.commit,
+                            local_dir=miner_j_data_dir,
+                            cache_dir=self.config.cache_dir,
+                        )
+
+                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    except FileNotFoundError as e:
+                        bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
+                        continue
+                    except Exception as e:
+                        bt.logging.error(f"Error loading data file for UID {uid_j} during duplicate check: {e}")
+                        continue
+
+                    if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
+                        bt.logging.debug(
+                            f"Found similar raw score: {uid_i} and {uid_j}"
+                        )
+                        similar_uids.append(uid_j)
+
+            if len(similar_uids) > 1:
+                bt.logging.info(f"Found duplicate group: {similar_uids}")
+                duplicate_groups.append(similar_uids)
+                processed_uids.update(similar_uids)
+
+        duplicates = set()
+        for group in duplicate_groups:
+            bt.logging.info(f"Processing duplicate group: {group}")
+            group.sort(key=lambda uid: block_per_uid[uid])
+            bt.logging.info(f"Sorted by block: {group}")
+
+            for uid in group[1:]:
+                duplicates.add(uid)
+                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
+
         for uid in uids_to_eval:
+            current_raw_score = raw_scores_this_epoch.get(uid)
+            if current_raw_score is not None and current_raw_score == constants.DEFAULT_RAW_SCORE:
+                bt.logging.info(f"The dataset for UID {uid} is invalid.")
+                continue
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
                 f"Retrieving model metadata for hotkey: {self.metagraph.hotkeys[uid]}"
@@ -273,8 +423,7 @@ class Validator:
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
                     )
                     retrieved_raw_score = self.score_db.get_raw_eval_score(uid)
-                    raw_scores_this_epoch[uid] = retrieved_raw_score if retrieved_raw_score is not None else constants.DEFAULT_SCORE
-                    block_per_uid[uid] = metadata.block
+                    raw_scores_this_epoch[uid] = retrieved_raw_score if retrieved_raw_score is not None else constants.DEFAULT_RAW_SCORE
                     continue
                 try:
                     miner_data_dir = os.path.join(self.config.data_dir, f"miner_{uid}")
@@ -282,31 +431,6 @@ class Validator:
 
                     bt.logging.info(f"Using data directory: {miner_data_dir}")
                     bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
-
-                    os.makedirs(miner_data_dir, exist_ok=True)
-                    os.makedirs(eval_data_dir, exist_ok=True)
-
-                    bt.logging.info(
-                        f"Downloading training dataset: {metadata.id.namespace}/{metadata.id.commit}"
-                    )
-
-                    download_dataset(
-                        metadata.id.namespace,
-                        metadata.id.commit,
-                        local_dir=miner_data_dir,
-                        cache_dir=self.config.cache_dir,
-                    )
-
-                    bt.logging.info(
-                        f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
-                    )
-
-                    download_dataset(
-                        eval_namespace,
-                        constants.eval_commit,
-                        local_dir=eval_data_dir,
-                        cache_dir=self.config.cache_dir,
-                    )
 
                     for fname in os.listdir(eval_data_dir):
                         if fname.endswith(".jsonl"):
@@ -328,7 +452,6 @@ class Validator:
                     bt.logging.info(f"Training complete with eval loss: {eval_loss}")
 
                     raw_scores_this_epoch[uid] = eval_loss
-                    block_per_uid[uid] = metadata.block
                     self.score_db.update_raw_eval_score(uid, eval_loss)
                     self.score_db.set_revision(ns, revision)
 
@@ -339,61 +462,15 @@ class Validator:
                     if "CUDA" in str(e):
                         bt.logging.error("CUDA error detected, terminating process")
                         os._exit(1)
-                    raw_scores_this_epoch[uid] = constants.DEFAULT_SCORE
-                    block_per_uid[uid] = metadata.block
-                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_SCORE)
+                    raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
                     bt.logging.info(
-                        f"Assigned fallback score {constants.DEFAULT_SCORE:.6f} to UID {uid} due to train error"
+                        f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid} due to train error"
                     )
             else:
                 bt.logging.warning(f"No metadata found for UID {uid}")
-                raw_scores_this_epoch[uid] = 0
-                self.score_db.update_raw_eval_score(uid, 0)
-
-        duplicate_groups = []
-        processed_uids = set()
-
-        bt.logging.info("Checking for duplicate scores using raw scores")
-        for uid_i, score_i in raw_scores_this_epoch.items():
-            if (
-                score_i is None
-                or score_i == 0
-                or score_i == constants.DEFAULT_SCORE
-                or uid_i in processed_uids
-            ):
-                bt.logging.debug(
-                    f"Skipping UID {uid_i} with score {score_i} (None, zero, or already processed)"
-                )
-                continue
-
-            similar_uids = [uid_i]
-            for uid_j, score_j in raw_scores_this_epoch.items():
-                if (
-                    uid_i != uid_j
-                    and score_j not in (None, 0, constants.DEFAULT_SCORE)
-                    and uid_j not in processed_uids
-                ):
-                    if math.isclose(score_i, score_j, rel_tol=1e-5):
-                        bt.logging.debug(
-                            f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
-                        )
-                        similar_uids.append(uid_j)
-
-            if len(similar_uids) > 1:
-                bt.logging.info(f"Found duplicate group: {similar_uids}")
-                duplicate_groups.append(similar_uids)
-                processed_uids.update(similar_uids)
-
-        duplicates = set()
-        for group in duplicate_groups:
-            bt.logging.info(f"Processing duplicate group: {group}")
-            group.sort(key=lambda uid: block_per_uid[uid])
-            bt.logging.info(f"Sorted by block: {group}")
-
-            for uid in group[1:]:
-                duplicates.add(uid)
-                raw_scores_this_epoch[uid] = constants.DEFAULT_SCORE
-                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_SCORE)
+                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
         bt.logging.info("Normalizing raw scores")
         normalized_scores_this_epoch = {}
@@ -407,8 +484,16 @@ class Validator:
                     bt.logging.warning(
                         f"Invalid benchmark ({competition.bench}) for UID {uid}; defaulting score to 0"
                     )
-                    normalized_score = constants.DEFAULT_SCORE
+                    normalized_score = constants.DEFAULT_NORMALIZED_SCORE
                 else:
+                    # Get the metadata for this specific UID
+                    uid_metadata = metadata_per_uid.get(uid)
+                    if uid_metadata is not None and uid_metadata.id is not None:
+                        competition_id = uid_metadata.id.competition_id
+                    else:
+                        bt.logging.warning(f"No metadata found for UID {uid} during normalization, using None for competition_id")
+                        competition_id = None
+                    
                     normalized_score = compute_score(
                         current_raw_score,
                         competition.bench,
@@ -416,13 +501,14 @@ class Validator:
                         competition.maxb,
                         competition.pow,
                         competition.bheight,
-                        metadata.id.competition_id,
+                        competition_id,
                         competition.id,
                     )
                 normalized_scores_this_epoch[uid] = normalized_score
             else:
-                bt.logging.debug(f"Setting zero normalized score for UID {uid} as raw score was missing")
-                normalized_scores_this_epoch[uid] = 0
+                # It's possibly due to the should_set_weights function causing data loss
+                bt.logging.debug(f"Save the original score for UID {uid} as raw score was missing")
+                # normalized_scores_this_epoch[uid] = self.weights[uid]
         bt.logging.debug(f"Normalized scores for this epoch: {normalized_scores_this_epoch}")
 
         bt.logging.info("Creating new weights tensor based on this epoch's normalized scores")

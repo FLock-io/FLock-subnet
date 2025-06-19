@@ -1,3 +1,4 @@
+import json
 import bittensor as bt
 import numpy as np
 from flockoff import constants
@@ -31,37 +32,37 @@ def compute_score(
 
     if power is None or power <= 0:
         bt.logging.warning("Power is None or negative, returning score of 0")
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if real_comp_id is None:
         bt.logging.error(
             f"Invalid real_comp_id ({real_comp_id}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if miner_comp_id != real_comp_id:
         bt.logging.error(
             f"Miner commitment ID ({miner_comp_id}) does not match real commitment ID ({real_comp_id}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if benchmark_loss is None or benchmark_loss <= 0:
         bt.logging.error(
             f"Invalid benchmark_loss ({benchmark_loss}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if min_bench is None or max_bench is None:
         bt.logging.error(
             f"Invalid min_bench ({min_bench}) or max_bench ({max_bench}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if min_bench >= max_bench:
         bt.logging.error(
             f"Invalid min_bench ({min_bench}) >= max_bench ({max_bench}). Returning baseline score."
         )
-        return constants.DEFAULT_SCORE
+        return constants.DEFAULT_NORMALIZED_SCORE
 
     if loss < min_bench:
         return 1.0
@@ -81,3 +82,12 @@ def compute_score(
         numerator = -(bench_height) * np.pow(loss - benchmark_loss, power)
         denominator = np.pow((max_bench - benchmark_loss), power)
         return numerator / denominator + bench_height
+
+def load_jsonl(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return [json.loads(line.strip()) for line in f if line.strip()]
+
+def count_similar(jsonl1, jsonl2):
+    set1 = set(json.dumps(item, sort_keys=True) for item in jsonl1)
+    set2 = set(json.dumps(item, sort_keys=True) for item in jsonl2)
+    return len(set1 & set2)
