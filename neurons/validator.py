@@ -343,11 +343,11 @@ class Validator:
                 ):
                     miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
                     metadata_j = retrieve_model_metadata(
-                        self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
+                        self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_j]
                     )
                     if metadata_j is None:
                         bt.logging.debug(
-                            f"Skipping UID {uid_i}  (metadata is None)"
+                            f"Skipping UID {uid_j}  (metadata is None)"
                         )
                         continue
                     try:
@@ -359,7 +359,7 @@ class Validator:
                         download_dataset(
                             metadata_j.id.namespace,
                             metadata_j.id.commit,
-                            local_dir=miner_i_data_dir,
+                            local_dir=miner_j_data_dir,
                             cache_dir=self.config.cache_dir,
                         )
 
