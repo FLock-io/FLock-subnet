@@ -248,7 +248,88 @@ class Validator:
         raw_scores_this_epoch = {}
         block_per_uid = {}
         metadata_per_uid = {}  # Track metadata for each UID
+
+        duplicate_groups = []
+        processed_uids = set()
+        bt.logging.info("Checking for duplicate scores using raw scores")
+        for uid_i in uids_to_eval:
+            if uid_i in processed_uids:
+                bt.logging.debug(
+                    f"Skipping UID {uid_i}  (None, zero, or already processed)"
+                )
+                continue
+
+            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            eval_data_dir = self.config.eval_data_dir
+
+            try:
+                eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
+                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+            except FileNotFoundError as e:
+                bt.logging.warning(f"Data file not found for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to missing data file")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+            except Exception as e:
+                bt.logging.error(f"Error loading data files for UID {uid_i}: {e}")
+                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to data loading error")
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+
+            if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                bt.logging.info(
+                    f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid_i} due to the "
+                    f"miner dataset is not entirely from the evaluation dataset"
+                )
+                continue
+
+            similar_uids = [uid_i]
+            for uid_j, in uids_to_eval:
+                if (
+                        uid_i != uid_j
+                        and uid_j not in processed_uids
+                ):
+                    miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
+                    try:
+                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                    except FileNotFoundError as e:
+                        bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
+                        continue
+                    except Exception as e:
+                        bt.logging.error(f"Error loading data file for UID {uid_j} during duplicate check: {e}")
+                        continue
+
+                    if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
+                        bt.logging.debug(
+                            f"Found similar raw score: {uid_i} and {uid_j}"
+                        )
+                        similar_uids.append(uid_j)
+
+            if len(similar_uids) > 1:
+                bt.logging.info(f"Found duplicate group: {similar_uids}")
+                duplicate_groups.append(similar_uids)
+                processed_uids.update(similar_uids)
+
+        duplicates = set()
+        for group in duplicate_groups:
+            bt.logging.info(f"Processing duplicate group: {group}")
+            group.sort(key=lambda uid: block_per_uid[uid])
+            bt.logging.info(f"Sorted by block: {group}")
+
+            for uid in group[1:]:
+                duplicates.add(uid)
+                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
+
         for uid in uids_to_eval:
+            current_raw_score = raw_scores_this_epoch.get(uid)
+            if current_raw_score is not None and current_raw_score == constants.DEFAULT_RAW_SCORE:
+                bt.logging.info(f"The dataset for UID {uid} is invalid.")
+                continue
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
                 f"Retrieving model metadata for hotkey: {self.metagraph.hotkeys[uid]}"
@@ -349,88 +430,6 @@ class Validator:
                     )
             else:
                 bt.logging.warning(f"No metadata found for UID {uid}")
-                raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
-                self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
-
-        duplicate_groups = []
-        processed_uids = set()
-
-        bt.logging.info("Checking for duplicate scores using raw scores")
-        for uid_i, score_i in raw_scores_this_epoch.items():
-            if (
-                score_i is None
-                or score_i == constants.DEFAULT_RAW_SCORE
-                or uid_i in processed_uids
-            ):
-                bt.logging.debug(
-                    f"Skipping UID {uid_i} with score {score_i} (None, zero, or already processed)"
-                )
-                continue
-
-            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
-            eval_data_dir = self.config.eval_data_dir
-
-            try:
-                eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
-                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
-            except FileNotFoundError as e:
-                bt.logging.warning(f"Data file not found for UID {uid_i}: {e}")
-                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to missing data file")
-                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
-                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
-                continue
-            except Exception as e:
-                bt.logging.error(f"Error loading data files for UID {uid_i}: {e}")
-                bt.logging.info(f"Assigning fallback score to UID {uid_i} due to data loading error")
-                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
-                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
-                continue
-
-            if count_similar(eval_data_jsonl, miner_i_data_jsonl) != len(miner_i_data_jsonl):
-                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
-                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
-                bt.logging.info(
-                    f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid_i} due to the "
-                    f"miner dataset is not entirely from the evaluation dataset"
-                )
-                continue
-
-            similar_uids = [uid_i]
-            for uid_j, score_j in raw_scores_this_epoch.items():
-                if (
-                        uid_i != uid_j
-                        and score_j not in (None, constants.DEFAULT_RAW_SCORE)
-                        and uid_j not in processed_uids
-                ):
-                    miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
-                    try:
-                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
-                    except FileNotFoundError as e:
-                        bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
-                        continue
-                    except Exception as e:
-                        bt.logging.error(f"Error loading data file for UID {uid_j} during duplicate check: {e}")
-                        continue
-                        
-                    if count_similar(miner_j_data_jsonl, miner_i_data_jsonl) > constants.DEFAULT_DUPLICATE_COUNT:
-                        bt.logging.debug(
-                            f"Found similar raw score: {uid_i}({score_i}) and {uid_j}({score_j})"
-                        )
-                        similar_uids.append(uid_j)
-
-            if len(similar_uids) > 1:
-                bt.logging.info(f"Found duplicate group: {similar_uids}")
-                duplicate_groups.append(similar_uids)
-                processed_uids.update(similar_uids)
-
-        duplicates = set()
-        for group in duplicate_groups:
-            bt.logging.info(f"Processing duplicate group: {group}")
-            group.sort(key=lambda uid: block_per_uid[uid])
-            bt.logging.info(f"Sorted by block: {group}")
-
-            for uid in group[1:]:
-                duplicates.add(uid)
                 raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
                 self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
