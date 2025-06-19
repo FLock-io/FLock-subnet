@@ -262,7 +262,51 @@ class Validator:
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
             eval_data_dir = self.config.eval_data_dir
 
+            metadata_i = retrieve_model_metadata(
+                self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
+            )
+            if metadata_i is None:
+                bt.logging.debug(
+                    f"Skipping UID {uid_i}  (metadata is None)"
+                )
+                continue
             try:
+                bt.logging.info(f"Using data directory: {miner_i_data_dir}")
+                bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
+
+                os.makedirs(miner_i_data_dir, exist_ok=True)
+                os.makedirs(eval_data_dir, exist_ok=True)
+
+                bt.logging.info(
+                    f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
+                )
+
+                download_dataset(
+                    metadata_i.id.namespace,
+                    metadata_i.id.commit,
+                    local_dir=miner_i_data_dir,
+                    cache_dir=self.config.cache_dir,
+                )
+
+                bt.logging.info(
+                    f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
+                )
+
+                download_dataset(
+                    eval_namespace,
+                    constants.eval_commit,
+                    local_dir=eval_data_dir,
+                    cache_dir=self.config.cache_dir,
+                )
+
+                for fname in os.listdir(eval_data_dir):
+                    if fname.endswith(".jsonl"):
+                        src = os.path.join(eval_data_dir, fname)
+                        dst = os.path.join(eval_data_dir, "data.jsonl")
+                        if src != dst:
+                            os.replace(src, dst)
+                            bt.logging.info(f"Renamed {fname} → data.jsonl")
+
                 eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
                 miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
             except FileNotFoundError as e:
@@ -294,7 +338,27 @@ class Validator:
                         and uid_j not in processed_uids
                 ):
                     miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
+                    metadata_j = retrieve_model_metadata(
+                        self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
+                    )
+                    if metadata_j is None:
+                        bt.logging.debug(
+                            f"Skipping UID {uid_i}  (metadata is None)"
+                        )
+                        continue
                     try:
+                        bt.logging.info(f"Using data directory: {miner_j_data_dir}")
+                        os.makedirs(miner_j_data_dir, exist_ok=True)
+                        bt.logging.info(
+                            f"Downloading training dataset: {metadata_j.id.namespace}/{metadata_j.id.commit}"
+                        )
+                        download_dataset(
+                            metadata_j.id.namespace,
+                            metadata_j.id.commit,
+                            local_dir=miner_i_data_dir,
+                            cache_dir=self.config.cache_dir,
+                        )
+
                         miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
                     except FileNotFoundError as e:
                         bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
@@ -365,31 +429,6 @@ class Validator:
 
                     bt.logging.info(f"Using data directory: {miner_data_dir}")
                     bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
-
-                    os.makedirs(miner_data_dir, exist_ok=True)
-                    os.makedirs(eval_data_dir, exist_ok=True)
-
-                    bt.logging.info(
-                        f"Downloading training dataset: {metadata.id.namespace}/{metadata.id.commit}"
-                    )
-
-                    download_dataset(
-                        metadata.id.namespace,
-                        metadata.id.commit,
-                        local_dir=miner_data_dir,
-                        cache_dir=self.config.cache_dir,
-                    )
-
-                    bt.logging.info(
-                        f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
-                    )
-
-                    download_dataset(
-                        eval_namespace,
-                        constants.eval_commit,
-                        local_dir=eval_data_dir,
-                        cache_dir=self.config.cache_dir,
-                    )
 
                     for fname in os.listdir(eval_data_dir):
                         if fname.endswith(".jsonl"):
