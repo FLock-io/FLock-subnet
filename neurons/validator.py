@@ -253,6 +253,18 @@ class Validator:
         processed_uids = set()
         bt.logging.info("Checking for duplicate scores using raw scores")
         for uid_i in uids_to_eval:
+
+            metadata_i = retrieve_model_metadata(
+                self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
+            )
+
+            if metadata_i is None:
+                bt.logging.debug(
+                    f"Skipping UID {uid_i}  (metadata is None)"
+                )
+                continue
+            metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
+
             if uid_i in processed_uids:
                 bt.logging.debug(
                     f"Skipping UID {uid_i}  (None, zero, or already processed)"
@@ -262,14 +274,6 @@ class Validator:
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
             eval_data_dir = self.config.eval_data_dir
 
-            metadata_i = retrieve_model_metadata(
-                self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
-            )
-            if metadata_i is None:
-                bt.logging.debug(
-                    f"Skipping UID {uid_i}  (metadata is None)"
-                )
-                continue
             try:
                 bt.logging.info(f"Using data directory: {miner_i_data_dir}")
                 bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
@@ -401,7 +405,6 @@ class Validator:
             metadata = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
-            metadata_per_uid[uid] = metadata  # Store metadata for this UID
 
             if self.should_set_weights():
                 bt.logging.info(
