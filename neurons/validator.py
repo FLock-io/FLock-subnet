@@ -264,7 +264,7 @@ class Validator:
                 )
                 continue
             metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
-
+            block_per_uid[uid_i] = metadata_i.block
             if uid_i in processed_uids:
                 bt.logging.debug(
                     f"Skipping UID {uid_i}  (None, zero, or already processed)"
@@ -424,7 +424,6 @@ class Validator:
                     )
                     retrieved_raw_score = self.score_db.get_raw_eval_score(uid)
                     raw_scores_this_epoch[uid] = retrieved_raw_score if retrieved_raw_score is not None else constants.DEFAULT_RAW_SCORE
-                    block_per_uid[uid] = metadata.block
                     continue
                 try:
                     miner_data_dir = os.path.join(self.config.data_dir, f"miner_{uid}")
@@ -453,7 +452,6 @@ class Validator:
                     bt.logging.info(f"Training complete with eval loss: {eval_loss}")
 
                     raw_scores_this_epoch[uid] = eval_loss
-                    block_per_uid[uid] = metadata.block
                     self.score_db.update_raw_eval_score(uid, eval_loss)
                     self.score_db.set_revision(ns, revision)
 
@@ -465,7 +463,6 @@ class Validator:
                         bt.logging.error("CUDA error detected, terminating process")
                         os._exit(1)
                     raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
-                    block_per_uid[uid] = metadata.block
                     self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
                     bt.logging.info(
                         f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid} due to train error"
