@@ -288,7 +288,7 @@ class Validator:
                 continue
 
             similar_uids = [uid_i]
-            for uid_j, in uids_to_eval:
+            for uid_j in uids_to_eval:
                 if (
                         uid_i != uid_j
                         and uid_j not in processed_uids
