@@ -247,6 +247,7 @@ class Validator:
 
         raw_scores_this_epoch = {}
         block_per_uid = {}
+        metadata_per_uid = {}  # Store metadata for each UID
         for uid in uids_to_eval:
             bt.logging.info(f"Evaluating UID: {uid}")
             bt.logging.info(
@@ -255,6 +256,7 @@ class Validator:
             metadata = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
             )
+            metadata_per_uid[uid] = metadata  # Store metadata for this specific UID
 
             if self.should_set_weights():
                 bt.logging.info(
@@ -399,6 +401,12 @@ class Validator:
         normalized_scores_this_epoch = {}
         for uid in uids_to_eval:
             current_raw_score = raw_scores_this_epoch.get(uid)
+            
+            # Skip UIDs that were not evaluated (no metadata)
+            if uid not in metadata_per_uid:
+                bt.logging.debug(f"UID {uid} was not evaluated, skipping normalization")
+                continue
+            
             if current_raw_score is not None:
                 bt.logging.debug(
                     f"Computing normalized score for UID {uid} with raw score {current_raw_score}"
@@ -409,6 +417,9 @@ class Validator:
                     )
                     normalized_score = constants.DEFAULT_SCORE
                 else:
+                    # Use the correct metadata for this UID
+                    uid_metadata = metadata_per_uid[uid]
+                    
                     normalized_score = compute_score(
                         current_raw_score,
                         competition.bench,
@@ -416,7 +427,7 @@ class Validator:
                         competition.maxb,
                         competition.pow,
                         competition.bheight,
-                        metadata.id.competition_id,
+                        uid_metadata.id.competition_id,  # Use correct metadata
                         competition.id,
                     )
                 normalized_scores_this_epoch[uid] = normalized_score
