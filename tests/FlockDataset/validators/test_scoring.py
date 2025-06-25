@@ -86,7 +86,7 @@ def test_zero_benchmark_evaluation():
     loss = 0.1
     benchmark_loss = 0
     power = 2
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
@@ -104,7 +104,7 @@ def test_negative_benchmark_evaluation():
     loss = 0.1
     benchmark_loss = -0.1
     power = 2
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
@@ -122,7 +122,7 @@ def test_none_benchmark_evaluation():
     loss = 0.1
     benchmark_loss = None
     power = 2
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
@@ -140,7 +140,7 @@ def test_invalid_power():
     loss = 0.1
     benchmark_loss = 0.1
     power = -1
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
@@ -158,7 +158,7 @@ def test_none_power():
     loss = 0.1
     benchmark_loss = 0.1
     power = None
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
@@ -176,7 +176,7 @@ def test_mismatched_competition_id():
     loss = 0.1
     benchmark_loss = 0.1
     power = 2
-    expected_score = constants.DEFAULT_SCORE
+    expected_score = constants.DEFAULT_NORMALIZED_SCORE
     score = compute_score(
         loss,
         benchmark_loss,
