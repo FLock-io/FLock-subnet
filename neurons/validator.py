@@ -28,7 +28,7 @@ from dataclasses import asdict
 
 from flockoff import constants
 from flockoff.utils.chain import assert_registered, read_chain_commitment
-from flockoff.utils.git import check_latest_code
+from flockoff.utils.git import check_and_update_code
 from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
@@ -101,7 +101,7 @@ class Validator:
         self.config = Validator.config()
 
         bt.logging.info("Checking git branch")
-        check_latest_code()
+        check_and_update_code()
 
         if self.config.cache_dir and self.config.cache_dir.startswith("~"):
             self.config.cache_dir = os.path.expanduser(self.config.cache_dir)
@@ -180,8 +180,9 @@ class Validator:
 
     async def run_step(self):
         bt.logging.info("Starting run step")
-        bt.logging.info("Attempting to sync metagraph")
+        check_and_update_code()
 
+        bt.logging.info("Attempting to sync metagraph")
         synced_metagraph = await self.try_sync_metagraph()
         if not synced_metagraph:
             bt.logging.warning("Failed to sync metagraph")

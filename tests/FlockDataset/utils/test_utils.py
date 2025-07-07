@@ -3,7 +3,7 @@ import bittensor as bt
 from flockoff.utils.git import (
     get_current_branch,
     is_up_to_date_with_main,
-    check_latest_code,
+    check_and_update_code,
 )
 from flockoff.utils.chain import read_chain_commitment
 import pytest
@@ -79,9 +79,9 @@ def test_git_functions():
     # This is just informational, not a failure condition
     print(f"\nCurrent branch: {branch}, Up to date with main: {is_current}")
 
-    # Test check_latest_code function by checking if it raises an exception
+    # Test check_and_update_code function by checking if it raises an exception
     try:
-        check_latest_code()
+        check_and_update_code()
         print("\nRepository is up to date with main")
     except RuntimeError as e:
         # Don't fail the test, just print the message
