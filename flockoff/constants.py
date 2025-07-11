@@ -10,57 +10,24 @@ DEFAULT_RAW_SCORE = 999
 DEFAULT_NORMALIZED_SCORE = 0.0
 DEFAULT_DUPLICATE_COUNT = 200
 
-def get_subnet_owner(is_testnet: bool = False) -> str:
-    """
-    Returns the subnet owner based on whether it's a testnet or mainnet.
-    """
-    if is_testnet:
-        return "5Cex1UGEN6GZBcSBkWXtrerQ6Zb7h8eD7oSe9eDyZmj4doWu"
-    else:
-        return "5DFcEniKrQRbCakLFGY3UqPL3ZbNnTQHp8LTvLfipWhE2Yfr"
 
 
 @dataclass
 class Competition:
     """Class defining model parameters"""
-
-    id: str
-    repo: str
-    bench: float
-    minb: float
-    maxb: float
-    bheight: float
-    pow: int
-    rows: int
+    id: str = "1"
+    repo: str = "flock-io/flock-off-s1-text-2-sql"
+    bench: float = 0.16
+    minb: float = 0.138
+    maxb: float = 0.165
+    bheight: float = 0.05
+    pow: int = 2
+    rows: int = 250
 
     @classmethod
-    def from_dict(cls, data: dict) -> Optional["Competition"]:
-        """Create a ChainCommitment from a dictionary"""
-        if not data:
-            return None
-
-        try:
-            id_val = str(data.get("id", ""))
-            repo_val = str(data.get("repo", ""))
-            bench_val = float(data.get("bench", 0.157))
-            minb_val = float(data.get("minb", 0.14))
-            maxb_val = float(data.get("maxb", 0.165))
-            bheight_val = float(data.get("bheight", 0.05))
-            rows_val = int(data.get("rows", 250))
-            pow_val = 2 #int(data.get("pow", 2))
-            return cls(
-                id=id_val,
-                repo=repo_val,
-                bench=bench_val,
-                rows=rows_val,
-                pow=pow_val,
-                minb=minb_val,
-                maxb=maxb_val,
-                bheight=bheight_val,
-            )
-        except (TypeError, ValueError) as e:
-            bt.logging.warning(f"Failed to parse Competition from dict: {e}")
-            return None
+    def from_defaults(cls) -> "Competition":
+        """Return an instance with constant default values"""
+        return cls()
 
 
 # eval dataset huggingface
