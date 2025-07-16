@@ -7,7 +7,6 @@ from typing import Optional
 from flockoff import constants
 from flockoff.utils.chain import (
     assert_registered,
-    read_chain_commitment,
     Competition,
 )
 from flockoff.miners import model, chain
@@ -61,15 +60,7 @@ async def main(config: bt.config):
 
     commit_id = model.upload_data(config.hf_repo_id, config.dataset_path)
 
-    is_testnet = config.subtensor.network == "test"
-    bt.logging.info(f"Is testnet: {is_testnet}")
-    subnet_owner = constants.get_subnet_owner(is_testnet)
-    competition: Optional[Competition] = read_chain_commitment(
-        subnet_owner, subtensor, int(config.netuid)
-    )
-    if competition is None:
-        bt.logging.error("Failed to read competition commitment")
-        return
+    competition = Competition.from_defaults()
 
     model_id_with_commit = ModelId(
         namespace=config.hf_repo_id, commit=commit_id, competition_id=competition.id
