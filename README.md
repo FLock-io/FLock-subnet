@@ -264,3 +264,4 @@ FLock OFF is a decentralized subnet where miners compete to create high-quality 
 - **Fairness:** Fixed training config ensures consistent evaluation
 - **Capacity:** Validators can process ~10,000-20,000 rows per dataset on a 4090, depending on token length and epoch timing
 - **Metrics:** Evaluation loss determines dataset quality, with duplicates penalized
+
