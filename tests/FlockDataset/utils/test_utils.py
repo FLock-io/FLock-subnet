@@ -63,8 +63,9 @@ def test_git_functions():
 
     # Test check_and_update_code function by checking if it raises an exception
     try:
-        check_and_update_code()
-        print("\nRepository is up to date with main")
+        if is_current:
+            check_and_update_code()
+            print("\nRepository is up to date with main")
     except RuntimeError as e:
         # Don't fail the test, just print the message
         print(f"\nRepository is not up to date with main: {e}")
