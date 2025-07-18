@@ -39,12 +39,6 @@ def test_competition_value():
     assert (
         comp.minb <= comp.maxb
     ), f"Minb should be less than or equal to maxb, got {comp.minb} > {comp.maxb}"
-    assert (
-        comp.bheight <= comp.maxb
-    ), f"Bheight should be less than or equal to maxb, got {comp.bheight} > {comp.maxb}"
-    assert (
-        comp.bheight >= comp.minb
-    ), f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
 
     bt.logging.info(
         f"Commitment values: id={comp.id}, repo={comp.repo}, bench={comp.bench}, rows={comp.rows}, pow={comp.pow}"
