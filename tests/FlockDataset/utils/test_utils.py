@@ -8,22 +8,13 @@ from flockoff.utils.git import (
 import pytest
 from flockoff.constants import Competition
 
-# SUBNET_OWNER_KEY = "5DFcEniKrQRbCakLFGY3UqPL3ZbNnTQHp8LTvLfipWhE2Yfr"
-# SUBNET_OWNER_KEY = "5FZGwrY9Ycz8m6fq5rpZCgoSrQWddb7SnZCr3rFU61auctG2"
-SUBNET_OWNER_KEY = "5Cex1UGEN6GZBcSBkWXtrerQ6Zb7h8eD7oSe9eDyZmj4doWu"
 
 
-@pytest.fixture
-def node():
-    """Create a subtensor with test network connection"""
-    return bt.subtensor("test")
-
-
-def test_competition_value(node):
+def test_competition_value():
     """Test reading commitment data from another neuron on the chain"""
     comp = Competition.from_defaults()
 
-    print(comp)
+    bt.logging.info(f"Competition:{comp}")
 
     assert comp is not None, "Should return a valid commitment"
 
@@ -48,6 +39,12 @@ def test_competition_value(node):
     assert (
         comp.minb <= comp.maxb
     ), f"Minb should be less than or equal to maxb, got {comp.minb} > {comp.maxb}"
+    assert (
+        comp.bheight <= comp.maxb
+    ), f"Bheight should be less than or equal to maxb, got {comp.bheight} > {comp.maxb}"
+    assert (
+        comp.bheight >= comp.minb
+    ), f"Bheight should be greater than or equal to minb, got {comp.bheight} < {comp.minb}"
 
     bt.logging.info(
         f"Commitment values: id={comp.id}, repo={comp.repo}, bench={comp.bench}, rows={comp.rows}, pow={comp.pow}"
