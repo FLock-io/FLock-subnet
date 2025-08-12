@@ -23,6 +23,7 @@ import bittensor as bt
 import numpy as np
 import json
 import hashlib
+import wandb
 from dataclasses import asdict
 from flockoff.constants import Competition
 from flockoff import constants
@@ -87,6 +88,38 @@ class Validator:
             help="Number of blocks before epoch end to set weights.",
         )
 
+        # WandB arguments
+        parser.add_argument(
+            "--wandb_project",
+            type=str,
+            default="FLock-bittensor-validator",
+            help="WandB project name.",
+        )
+        parser.add_argument(
+            "--wandb_entity",
+            type=str,
+            default="flock-subent",
+            help="WandB entity name.",
+        )
+        parser.add_argument(
+            "--wandb_tags",
+            type=str,
+            nargs="*",
+            default=["validator", "bittensor"],
+            help="WandB tags for the run.",
+        )
+        parser.add_argument(
+            "--wandb_notes",
+            type=str,
+            default="Bittensor validator training and evaluation",
+            help="WandB run notes.",
+        )
+        parser.add_argument(
+            "--disable_wandb",
+            action="store_true",
+            help="Disable WandB logging.",
+        )
+
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
         bt.wallet.add_args(parser)
@@ -113,6 +146,9 @@ class Validator:
 
         bt.logging(config=self.config)
         bt.logging.info(f"Starting validator with config: {self.config}")
+
+        # Initialize WandB
+        self.init_wandb()
 
         # === Bittensor objects ====
         bt.logging.info("Initializing wallet")
@@ -154,7 +190,63 @@ class Validator:
             self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
         )
 
+        # Initialize step counter for WandB
+        self.step_counter = 0
+
+        # Log initial configuration to WandB
+        if not self.config.disable_wandb:
+            wandb.log({
+                "config/netuid": self.config.netuid,
+                "config/blocks_per_epoch": self.config.blocks_per_epoch,
+                "config/miner_sample_size": self.config.miner_sample_size,
+                "config/block_threshold": self.config.block_threshold,
+                "validator/uid": self.uid,
+                "network/name": self.config.subtensor.network
+            })
+
         bt.logging.info("Validator ready to run")
+
+    def init_wandb(self):
+        """Initialize Weights & Biases logging"""
+        if not self.config.disable_wandb:
+            try:
+                # Create run name with validator info
+                run_name = f"validator-netuid{self.config.netuid}-{self.config.subtensor.network}"
+
+                wandb.init(
+                    project=self.config.wandb_project,
+                    entity=self.config.wandb_entity,
+                    name=run_name,
+                    tags=self.config.wandb_tags,
+                    notes=self.config.wandb_notes,
+                    config={
+                        "netuid": self.config.netuid,
+                        "network": self.config.subtensor.network,
+                        "blocks_per_epoch": self.config.blocks_per_epoch,
+                        "miner_sample_size": self.config.miner_sample_size,
+                        "block_threshold": self.config.block_threshold,
+                        "cache_dir": self.config.cache_dir,
+                        "data_dir": self.config.data_dir,
+                        "eval_data_dir": self.config.eval_data_dir,
+                    }
+                )
+                bt.logging.info(f"WandB initialized with project: {self.config.wandb_project}")
+            except Exception as e:
+                bt.logging.warning(f"Failed to initialize WandB: {e}")
+                self.config.disable_wandb = True
+        else:
+            bt.logging.info("WandB logging disabled")
+
+    def log_to_wandb(self, metrics: dict, step: int = None):
+        """Log metrics to WandB if enabled"""
+        if not self.config.disable_wandb:
+            try:
+                if step is not None:
+                    wandb.log(metrics, step=step)
+                else:
+                    wandb.log(metrics)
+            except Exception as e:
+                bt.logging.warning(f"Failed to log to WandB: {e}")
 
     def should_set_weights(self) -> bool:
         current_block = self.subtensor.get_current_block()
@@ -180,7 +272,7 @@ class Validator:
     async def run_step(self):
         bt.logging.info("Starting run step")
         check_and_update_code()
-
+        self.step_counter += 1
         bt.logging.info("Attempting to sync metagraph")
         synced_metagraph = await self.try_sync_metagraph()
         if not synced_metagraph:
@@ -377,6 +469,13 @@ class Validator:
                 raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
                 self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
+            # Log duplicate detection results
+            self.log_to_wandb({
+                "duplicates/origin_miners": group[0],
+                "duplicates/duplicate_miners": group[1:],
+                "duplicates/origin_miners_block": block_per_uid[group[0]]
+            }, step=self.step_counter)
+
         for uid in uids_to_eval:
             current_raw_score = raw_scores_this_epoch.get(uid)
             if current_raw_score is not None and current_raw_score == constants.DEFAULT_RAW_SCORE:
@@ -439,6 +538,13 @@ class Validator:
                     self.score_db.update_raw_eval_score(uid, eval_loss)
                     self.score_db.set_revision(ns, revision)
 
+                    # Log individual miner evaluation results
+                    self.log_to_wandb({
+                        f"miner_{uid}/eval_loss": eval_loss,
+                        f"miner_{uid}/namespace": ns,
+                        f"miner_{uid}/commit": revision,
+                        f"miner_{uid}/block": metadata.block,
+                    }, step=self.step_counter)
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
                 except Exception as e:
@@ -477,7 +583,7 @@ class Validator:
                     else:
                         bt.logging.warning(f"No metadata found for UID {uid} during normalization, using None for competition_id")
                         competition_id = None
-                    
+
                     normalized_score = compute_score(
                         current_raw_score,
                         competition.bench,
