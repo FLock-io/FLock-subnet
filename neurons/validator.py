@@ -211,12 +211,13 @@ class Validator:
         if not self.config.disable_wandb:
             try:
                 # Create run name with validator info
-                run_name = f"validator-netuid{self.config.netuid}-{self.config.subtensor.network}"
+                run_name = f"validator{self.uid}-netuid{self.config.netuid}-{self.config.subtensor.network}"
 
                 wandb.init(
                     project=self.config.wandb_project,
                     entity=self.config.wandb_entity,
                     name=run_name,
+                    mode="offline",
                     tags=self.config.wandb_tags,
                     notes=self.config.wandb_notes,
                     config={
