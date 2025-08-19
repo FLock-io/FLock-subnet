@@ -147,9 +147,6 @@ class Validator:
         bt.logging(config=self.config)
         bt.logging.info(f"Starting validator with config: {self.config}")
 
-        # Initialize WandB
-        self.init_wandb()
-
         # === Bittensor objects ====
         bt.logging.info("Initializing wallet")
         self.wallet = bt.wallet(config=self.config)
@@ -193,6 +190,9 @@ class Validator:
         # Initialize step counter for WandB
         self.step_counter = 0
 
+        # Initialize WandB
+        self.init_wandb()
+
         # Log initial configuration to WandB
         if not self.config.disable_wandb:
             wandb.log({
@@ -217,9 +217,9 @@ class Validator:
                     project=self.config.wandb_project,
                     entity=self.config.wandb_entity,
                     name=run_name,
-                    mode="offline",
                     tags=self.config.wandb_tags,
                     notes=self.config.wandb_notes,
+                    save_code=False,
                     config={
                         "netuid": self.config.netuid,
                         "network": self.config.subtensor.network,
@@ -229,8 +229,10 @@ class Validator:
                         "cache_dir": self.config.cache_dir,
                         "data_dir": self.config.data_dir,
                         "eval_data_dir": self.config.eval_data_dir,
-                    }
+                    },
+                    settings=wandb.Settings(code_dir=None, _disable_stats=True, console="off")
                 )
+
                 bt.logging.info(f"WandB initialized with project: {self.config.wandb_project}")
             except Exception as e:
                 bt.logging.warning(f"Failed to initialize WandB: {e}")
