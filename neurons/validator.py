@@ -57,6 +57,12 @@ class Validator:
             default=10,
             help="Number of miners to sample for each block.",
         )
+        parser.add_argument(
+            "--miner_duplicate_sample_size",
+            type=int,
+            default=50,
+            help="Number of miners to sample for each block.",
+        )
         parser.add_argument("--netuid", type=int, required=True, help="The subnet UID.")
 
         parser.add_argument(
@@ -224,8 +230,10 @@ class Validator:
 
         bt.logging.info("Sampling competitors for evaluation")
         competitors = current_uids
+        duplicate_sample_size = min(self.config.miner_duplicate_sample_size, len(competitors))
         sample_size = min(self.config.miner_sample_size, len(competitors))
-        uids_to_eval = self.rng.choice(competitors, sample_size, replace=False).tolist()
+        uids_to_check_duplicate = self.rng.choice(competitors, duplicate_sample_size, replace=False).tolist()
+        uids_to_eval = self.rng.choice(uids_to_check_duplicate, sample_size, replace=False).tolist()
         lucky_num = int.from_bytes(os.urandom(4), "little")
         bt.logging.debug(f"UIDs to evaluate: {uids_to_eval}")
 
@@ -236,7 +244,7 @@ class Validator:
         duplicate_groups = []
         processed_uids = set()
         bt.logging.info("Checking for duplicate scores using raw scores")
-        for uid_i in uids_to_eval:
+        for uid_i in uids_to_check_duplicate:
 
             metadata_i = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
