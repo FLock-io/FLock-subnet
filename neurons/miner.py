@@ -2,13 +2,11 @@ import time
 import asyncio
 import argparse
 import bittensor as bt
-from typing import Optional
 
-from flockoff import constants
 from flockoff.utils.chain import (
     assert_registered,
-    Competition,
 )
+from flockoff.constants import Competition
 from flockoff.miners import model, chain
 from flockoff.miners.data import ModelId
 from dotenv import load_dotenv
