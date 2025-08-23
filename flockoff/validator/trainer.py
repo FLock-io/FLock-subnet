@@ -1,5 +1,7 @@
 import os
 import shutil
+import time
+
 import torch
 import gc
 
@@ -72,7 +74,7 @@ def download_dataset(
     )
 
     db.set_revision(namespace, revision)
-
+    time.sleep(1)
 
 def reset_gpu():
     """Reset GPU state and clear memory"""
