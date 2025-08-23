@@ -30,6 +30,8 @@ class ScoreDB:
                           hotkey TEXT, 
                           raw_score REAL, 
                           normalized_score REAL, 
+                          namespace TEXT,
+                          revision TEXT,
                           PRIMARY KEY (uid, hotkey))"""
             )
 
@@ -37,6 +39,8 @@ class ScoreDB:
                 """CREATE TABLE IF NOT EXISTS dataset_revisions
                            (namespace TEXT PRIMARY KEY, revision TEXT)"""
             )
+            c.execute("ALTER TABLE miner_scores ADD COLUMN namespace TEXT")
+            c.execute("ALTER TABLE miner_scores ADD COLUMN revision TEXT")
 
             self.conn.commit()
         except sqlite3.Error as e:
@@ -57,6 +61,20 @@ class ScoreDB:
             logger.error(f"Failed to get revision for namespace {namespace}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve revision: {str(e)}") from e
 
+    def get_score_revision(self, namespace: str) -> str | None:
+        """Return last stored revision for this namespace (or None)."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "SELECT revision FROM miner_scores WHERE namespace = ?",
+                (namespace,),
+            )
+            row = c.fetchone()
+            return row[0] if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get revision for namespace {namespace}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve revision: {str(e)}") from e
+
     def set_revision(self, namespace: str, revision: str):
         """Upsert the revision for this namespace."""
         try:
@@ -68,6 +86,18 @@ class ScoreDB:
                 ON CONFLICT(namespace) DO UPDATE SET revision=excluded.revision
                 """,
                 (namespace, revision),
+            )
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set revision for namespace {namespace}: {str(e)}")
+            raise DatabaseError(f"Failed to update revision: {str(e)}") from e
+
+    def set_score_revision(self, uid: int, namespace: str, revision: str):
+        """Upsert the revision for this namespace."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "UPDATE miner_scores SET namespace = ?, revision = ? WHERE uid = ?", (namespace, revision, uid)
             )
             self.conn.commit()
         except sqlite3.Error as e:
