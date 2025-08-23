@@ -30,8 +30,6 @@ class ScoreDB:
                           hotkey TEXT, 
                           raw_score REAL, 
                           normalized_score REAL, 
-                          namespace TEXT,
-                          revision TEXT,
                           PRIMARY KEY (uid, hotkey))"""
             )
 
