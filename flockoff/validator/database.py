@@ -37,13 +37,25 @@ class ScoreDB:
                 """CREATE TABLE IF NOT EXISTS dataset_revisions
                            (namespace TEXT PRIMARY KEY, revision TEXT)"""
             )
-            c.execute("ALTER TABLE miner_scores ADD COLUMN namespace TEXT")
-            c.execute("ALTER TABLE miner_scores ADD COLUMN revision TEXT")
+            self._add_column_if_not_exists(c, 'miner_scores', 'namespace', 'TEXT')
+            self._add_column_if_not_exists(c, 'miner_scores', 'revision', 'TEXT')
 
             self.conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize database tables: {str(e)}")
             raise DatabaseError(f"Failed to create database tables: {str(e)}") from e
+
+    def _add_column_if_not_exists(self, cursor, table_name, column_name, column_type):
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [column[1] for column in cursor.fetchall()]
+
+            if column_name not in columns:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                logger.info(f"Added column {column_name} to table {table_name}")
+
+        except sqlite3.Error as e:
+            logger.warning(f"Failed to add column {column_name} to {table_name}: {e}")
 
     def get_revision(self, namespace: str) -> str | None:
         """Return last stored revision for this namespace (or None)."""
