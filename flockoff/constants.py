@@ -18,7 +18,7 @@ class Competition:
     id: str = "1"
     repo: str = "flock-io/flock-off-s1-text-2-sql"
     bench: float = 0.16
-    minb: float = 0.136
+    minb: float = 0.135
     maxb: float = 0.165
     bheight: float = 0.05
     pow: int = 10
