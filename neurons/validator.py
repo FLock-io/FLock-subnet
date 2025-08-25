@@ -164,7 +164,6 @@ class Validator:
 
     def _update_score_init(self):
         bt.logging.info("start to update score init")
-        await self.try_sync_metagraph()
         current_uids = self.metagraph.uids.tolist()
         competition = Competition.from_defaults()
         db_normalized_scores = self.score_db.get_all_normalized_scores(current_uids)
