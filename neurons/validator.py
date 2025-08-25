@@ -159,8 +159,43 @@ class Validator:
         self.last_submitted_epoch = (
             self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
         )
-
+        self._update_score_init()
         bt.logging.info("Validator ready to run")
+
+    def _update_score_init(self):
+        bt.logging.info("start to update score init")
+        await self.try_sync_metagraph()
+        current_uids = self.metagraph.uids.tolist()
+        competition = Competition.from_defaults()
+        db_normalized_scores = self.score_db.get_all_normalized_scores(current_uids)
+        weights = torch.tensor(db_normalized_scores, dtype=torch.float32)
+
+        for uid in current_uids:
+            retrieved_raw_score = self.score_db.get_raw_eval_score(uid)
+            normalized_score = compute_score(
+                retrieved_raw_score,
+                competition.bench,
+                competition.minb,
+                competition.maxb,
+                competition.pow,
+                competition.bheight,
+                competition.id,
+                competition.id,
+            )
+            if uid < len(weights):
+                weights[uid] = normalized_score
+            else:
+                bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
+
+        weights = torch.where(
+            weights < constants.MIN_WEIGHT_THRESHOLD,
+            torch.zeros_like(weights),
+            weights,
+        )
+        for uid in current_uids:
+            if uid < len(weights):
+                final_normalized_weight = weights[uid].item()
+                self.score_db.update_final_normalized_score(uid, final_normalized_weight)
 
     def should_set_weights(self) -> bool:
         current_block = self.subtensor.get_current_block()
