@@ -171,20 +171,21 @@ class Validator:
 
         for uid in current_uids:
             retrieved_raw_score = self.score_db.get_raw_eval_score(uid)
-            normalized_score = compute_score(
-                retrieved_raw_score,
-                competition.bench,
-                competition.minb,
-                competition.maxb,
-                competition.pow,
-                competition.bheight,
-                competition.id,
-                competition.id,
-            )
-            if uid < len(weights):
-                weights[uid] = normalized_score
-            else:
-                bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
+            if retrieved_raw_score is not None:
+                normalized_score = compute_score(
+                    retrieved_raw_score,
+                    competition.bench,
+                    competition.minb,
+                    competition.maxb,
+                    competition.pow,
+                    competition.bheight,
+                    competition.id,
+                    competition.id,
+                )
+                if uid < len(weights):
+                    weights[uid] = normalized_score
+                else:
+                    bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
 
         weights = torch.where(
             weights < constants.MIN_WEIGHT_THRESHOLD,
