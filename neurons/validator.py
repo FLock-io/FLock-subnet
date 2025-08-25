@@ -406,7 +406,7 @@ class Validator:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
                 ns = metadata.id.namespace
                 revision = metadata.id.commit
-                last_rev = self.score_db.get_score_revision(ns)
+                last_rev = self.score_db.get_score_revision(uid, ns)
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
                 if last_rev == revision:
                     bt.logging.info(

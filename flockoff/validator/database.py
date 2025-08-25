@@ -71,13 +71,13 @@ class ScoreDB:
             logger.error(f"Failed to get revision for namespace {namespace}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve revision: {str(e)}") from e
 
-    def get_score_revision(self, namespace: str) -> str | None:
+    def get_score_revision(self, uid: int, namespace: str) -> str | None:
         """Return last stored revision for this namespace (or None)."""
         try:
             c = self.conn.cursor()
             c.execute(
-                "SELECT revision FROM miner_scores WHERE namespace = ?",
-                (namespace,),
+                "SELECT revision FROM miner_scores WHERE uid = ? AND namespace = ?",
+                (uid, namespace),
             )
             row = c.fetchone()
             return row[0] if row else None
