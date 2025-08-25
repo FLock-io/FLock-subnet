@@ -102,12 +102,12 @@ class ScoreDB:
             logger.error(f"Failed to set revision for namespace {namespace}: {str(e)}")
             raise DatabaseError(f"Failed to update revision: {str(e)}") from e
 
-    def set_score_revision(self, uid: int, namespace: str, revision: str):
+    def set_score_revision(self, uid: int, namespace: str, revision: str, hotkey: str):
         """Upsert the revision for this namespace."""
         try:
             c = self.conn.cursor()
             c.execute(
-                "UPDATE miner_scores SET namespace = ?, revision = ? WHERE uid = ?", (namespace, revision, uid)
+                "UPDATE miner_scores SET namespace = ?, revision = ?, hotkey= ? WHERE uid = ?", (namespace, revision, hotkey,uid)
             )
             self.conn.commit()
         except sqlite3.Error as e:

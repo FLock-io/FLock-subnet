@@ -443,7 +443,7 @@ class Validator:
 
                     raw_scores_this_epoch[uid] = eval_loss
                     self.score_db.update_raw_eval_score(uid, eval_loss)
-                    self.score_db.set_score_revision(uid, ns, revision)
+                    self.score_db.set_score_revision(uid, ns, revision, self.metagraph.hotkeys[uid])
 
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
