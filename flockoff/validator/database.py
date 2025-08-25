@@ -37,11 +37,25 @@ class ScoreDB:
                 """CREATE TABLE IF NOT EXISTS dataset_revisions
                            (namespace TEXT PRIMARY KEY, revision TEXT)"""
             )
+            self._add_column_if_not_exists(c, 'miner_scores', 'namespace', 'TEXT')
+            self._add_column_if_not_exists(c, 'miner_scores', 'revision', 'TEXT')
 
             self.conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize database tables: {str(e)}")
             raise DatabaseError(f"Failed to create database tables: {str(e)}") from e
+
+    def _add_column_if_not_exists(self, cursor, table_name, column_name, column_type):
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [column[1] for column in cursor.fetchall()]
+
+            if column_name not in columns:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                logger.info(f"Added column {column_name} to table {table_name}")
+
+        except sqlite3.Error as e:
+            logger.warning(f"Failed to add column {column_name} to {table_name}: {e}")
 
     def get_revision(self, namespace: str) -> str | None:
         """Return last stored revision for this namespace (or None)."""
@@ -50,6 +64,20 @@ class ScoreDB:
             c.execute(
                 "SELECT revision FROM dataset_revisions WHERE namespace = ?",
                 (namespace,),
+            )
+            row = c.fetchone()
+            return row[0] if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get revision for namespace {namespace}: {str(e)}")
+            raise DatabaseError(f"Failed to retrieve revision: {str(e)}") from e
+
+    def get_score_revision(self, uid: int, namespace: str) -> str | None:
+        """Return last stored revision for this namespace (or None)."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "SELECT revision FROM miner_scores WHERE uid = ? AND namespace = ?",
+                (uid, namespace),
             )
             row = c.fetchone()
             return row[0] if row else None
@@ -68,6 +96,18 @@ class ScoreDB:
                 ON CONFLICT(namespace) DO UPDATE SET revision=excluded.revision
                 """,
                 (namespace, revision),
+            )
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set revision for namespace {namespace}: {str(e)}")
+            raise DatabaseError(f"Failed to update revision: {str(e)}") from e
+
+    def set_score_revision(self, uid: int, namespace: str, revision: str, hotkey: str):
+        """Upsert the revision for this namespace."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "UPDATE miner_scores SET namespace = ?, revision = ?, hotkey= ? WHERE uid = ?", (namespace, revision, hotkey,uid)
             )
             self.conn.commit()
         except sqlite3.Error as e:

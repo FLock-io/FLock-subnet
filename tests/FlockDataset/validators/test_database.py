@@ -18,7 +18,7 @@ def test_init_db(db):
     assert c.fetchone() is not None, "The 'miner_scores' table should be created"
     c.execute("PRAGMA table_info(miner_scores)")
     columns = {row[1] for row in c.fetchall()}
-    expected_columns = {"uid", "hotkey", "raw_score", "normalized_score"}
+    expected_columns = {"uid", "hotkey", "raw_score", "normalized_score", "namespace", "revision"}
     assert columns == expected_columns, f"Expected columns {expected_columns}, got {columns}"
 
 

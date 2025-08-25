@@ -1,5 +1,7 @@
 import os
 import shutil
+import time
+
 import torch
 import gc
 
@@ -71,8 +73,8 @@ def download_dataset(
         repo_id=namespace, local_dir=local_dir, revision=revision, repo_type="dataset"
     )
 
-    # db.set_revision(namespace, revision)
-
+    db.set_revision(namespace, revision)
+    time.sleep(1)
 
 def reset_gpu():
     """Reset GPU state and clear memory"""

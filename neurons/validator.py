@@ -57,6 +57,12 @@ class Validator:
             default=10,
             help="Number of miners to sample for each block.",
         )
+        parser.add_argument(
+            "--miner_duplicate_sample_size",
+            type=int,
+            default=50,
+            help="Number of miners to sample for each block.",
+        )
         parser.add_argument("--netuid", type=int, required=True, help="The subnet UID.")
 
         parser.add_argument(
@@ -224,8 +230,10 @@ class Validator:
 
         bt.logging.info("Sampling competitors for evaluation")
         competitors = current_uids
+        duplicate_sample_size = min(self.config.miner_duplicate_sample_size, len(competitors))
         sample_size = min(self.config.miner_sample_size, len(competitors))
-        uids_to_eval = self.rng.choice(competitors, sample_size, replace=False).tolist()
+        uids_to_check_duplicate = self.rng.choice(competitors, duplicate_sample_size, replace=False).tolist()
+        uids_to_eval = self.rng.choice(uids_to_check_duplicate, sample_size, replace=False).tolist()
         lucky_num = int.from_bytes(os.urandom(4), "little")
         bt.logging.debug(f"UIDs to evaluate: {uids_to_eval}")
 
@@ -236,8 +244,26 @@ class Validator:
         duplicate_groups = []
         processed_uids = set()
         bt.logging.info("Checking for duplicate scores using raw scores")
-        for uid_i in uids_to_eval:
+        eval_data_dir = self.config.eval_data_dir
+        bt.logging.info(
+            f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
+        )
+        download_dataset(
+            eval_namespace,
+            constants.eval_commit,
+            local_dir=eval_data_dir,
+            cache_dir=self.config.cache_dir,
+        )
+        os.makedirs(eval_data_dir, exist_ok=True)
+        for fname in os.listdir(eval_data_dir):
+            if fname.endswith(".jsonl"):
+                src = os.path.join(eval_data_dir, fname)
+                dst = os.path.join(eval_data_dir, "data.jsonl")
+                if src != dst:
+                    os.replace(src, dst)
+                    bt.logging.info(f"Renamed {fname} → data.jsonl")
 
+        for uid_i in uids_to_check_duplicate:
             metadata_i = retrieve_model_metadata(
                 self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_i]
             )
@@ -249,6 +275,21 @@ class Validator:
                 continue
             metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
             block_per_uid[uid_i] = metadata_i.block
+
+            bt.logging.info(
+                f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
+            )
+            miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            download_dataset(
+                metadata_i.id.namespace,
+                metadata_i.id.commit,
+                local_dir=miner_i_data_dir,
+                cache_dir=self.config.cache_dir,
+            )
+            os.makedirs(miner_i_data_dir, exist_ok=True)
+
+
+        for uid_i in uids_to_check_duplicate:
             if uid_i in processed_uids:
                 bt.logging.debug(
                     f"Skipping UID {uid_i}  (None, zero, or already processed)"
@@ -256,45 +297,10 @@ class Validator:
                 continue
 
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
-            eval_data_dir = self.config.eval_data_dir
+            bt.logging.info(f"Using data directory: {miner_i_data_dir}")
+            bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
 
             try:
-                bt.logging.info(f"Using data directory: {miner_i_data_dir}")
-                bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
-
-                os.makedirs(miner_i_data_dir, exist_ok=True)
-                os.makedirs(eval_data_dir, exist_ok=True)
-
-                bt.logging.info(
-                    f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
-                )
-
-                download_dataset(
-                    metadata_i.id.namespace,
-                    metadata_i.id.commit,
-                    local_dir=miner_i_data_dir,
-                    cache_dir=self.config.cache_dir,
-                )
-
-                bt.logging.info(
-                    f"Downloading eval dataset: {eval_namespace}/{constants.eval_commit}"
-                )
-
-                download_dataset(
-                    eval_namespace,
-                    constants.eval_commit,
-                    local_dir=eval_data_dir,
-                    cache_dir=self.config.cache_dir,
-                )
-
-                for fname in os.listdir(eval_data_dir):
-                    if fname.endswith(".jsonl"):
-                        src = os.path.join(eval_data_dir, fname)
-                        dst = os.path.join(eval_data_dir, "data.jsonl")
-                        if src != dst:
-                            os.replace(src, dst)
-                            bt.logging.info(f"Renamed {fname} → data.jsonl")
-
                 eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
                 miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
             except FileNotFoundError as e:
@@ -400,7 +406,7 @@ class Validator:
                 bt.logging.info(f"Retrieved metadata: {metadata}")
                 ns = metadata.id.namespace
                 revision = metadata.id.commit
-                last_rev = self.score_db.get_revision(ns)
+                last_rev = self.score_db.get_score_revision(uid, ns)
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
                 if last_rev == revision:
                     bt.logging.info(
@@ -437,7 +443,7 @@ class Validator:
 
                     raw_scores_this_epoch[uid] = eval_loss
                     self.score_db.update_raw_eval_score(uid, eval_loss)
-                    self.score_db.set_revision(ns, revision)
+                    self.score_db.set_score_revision(uid, ns, revision, self.metagraph.hotkeys[uid])
 
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
 
