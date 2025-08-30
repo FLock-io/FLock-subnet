@@ -3,8 +3,9 @@ import bittensor as bt
 from flockoff.miners.data import ModelId, ModelMetadata
 from typing import Optional
 from typing import Optional, Tuple, Union
-from bittensor.core.extrinsics.set_weights import set_weights_extrinsic
-
+from bittensor.core.extrinsics.commit_weights import commit_weights_extrinsic
+from bittensor.utils.weight_utils import generate_weight_hash
+from bittensor.core.settings import version_as_int
 
 def retrieve_model_metadata(
     subtensor: bt.subtensor, subnet_uid: int, hotkey: str
@@ -79,6 +80,8 @@ def set_weights_with_err_msg(
     netuid: int,
     uids: [torch.LongTensor, list],
     weights: Union[torch.FloatTensor, list],
+    ss58_address: str,
+    salt: list[int],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     max_retries: int = 5,
@@ -95,12 +98,20 @@ def set_weights_with_err_msg(
         and retries < max_retries
     ):
         try:
-            success, message = set_weights_extrinsic(
+            commit_hash = generate_weight_hash(
+                address=ss58_address,
+                netuid=netuid,
+                uids=uids,
+                values=weights,
+                salt=salt,
+                version_key=version_as_int,
+            )
+
+            success, message = commit_weights_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid,
-                uids=uids,
-                weights=weights,
+                commit_hash=commit_hash,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
             )

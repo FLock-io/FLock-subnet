@@ -159,6 +159,7 @@ class Validator:
         self.last_submitted_epoch = (
             self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
         )
+        self.salt = list(os.urandom(8))
         self._update_score_init()
         bt.logging.info("Validator ready to run")
 
@@ -577,6 +578,8 @@ class Validator:
                 uids=uids_py,
                 weights=weights_py,
                 wait_for_inclusion=True,
+                ss58_address=self.wallet.hotkey.ss58_address,
+                salt=self.salt,
             )
             next_epoch_block = self.subtensor.get_next_epoch_start_block(
                 self.config.netuid
