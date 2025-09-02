@@ -98,11 +98,13 @@ def set_weights_with_err_msg(
         and retries < max_retries
     ):
         try:
+            precision = 1_000_000
+            new_weight = [int(round(w * precision)) for w in weights]
             commit_hash = generate_weight_hash(
                 address=ss58_address,
                 netuid=netuid,
                 uids=uids,
-                values=weights,
+                values=new_weight,
                 salt=salt,
                 version_key=version_as_int,
             )
