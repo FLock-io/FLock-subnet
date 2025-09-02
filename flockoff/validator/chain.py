@@ -1,8 +1,8 @@
 import torch
 import bittensor as bt
 from flockoff.miners.data import ModelId, ModelMetadata
-from typing import Optional
 from typing import Optional, Tuple, Union
+from flockoff import constants
 from bittensor.core.extrinsics.commit_weights import commit_weights_extrinsic
 from bittensor.utils.weight_utils import generate_weight_hash
 from bittensor.core.settings import version_as_int
@@ -98,8 +98,7 @@ def set_weights_with_err_msg(
         and retries < max_retries
     ):
         try:
-            precision = 1_000_000
-            new_weight = [int(round(w * precision)) for w in weights]
+            new_weight = [int(round(w * constants.SCORE_PRECISION)) for w in weights]
             commit_hash = generate_weight_hash(
                 address=ss58_address,
                 netuid=netuid,
