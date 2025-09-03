@@ -31,6 +31,7 @@ from flockoff.utils.git import check_and_update_code
 from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
+    reveal_weights_with_err_msg,
 )
 from flockoff.validator.validator_utils import compute_score, load_jsonl, count_similar
 from flockoff.validator.trainer import (
@@ -159,7 +160,7 @@ class Validator:
         self.last_submitted_epoch = (
             self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
         )
-        self.salt = list(os.urandom(8))
+        self.pending_reveal: typing.Optional[dict] = None
         self._update_score_init()
         bt.logging.info("Validator ready to run")
 
@@ -228,6 +229,27 @@ class Validator:
         if not synced_metagraph:
             bt.logging.warning("Failed to sync metagraph")
             return
+
+        # Try to reveal previously committed weights if any
+        if self.pending_reveal is not None:
+            try:
+                bt.logging.info("Attempting to reveal previously committed weights")
+                reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
+                    subtensor=self.subtensor,
+                    wallet=self.wallet,
+                    netuid=self.config.netuid,
+                    uids=self.pending_reveal["uids"],
+                    weights=self.pending_reveal["weights"],
+                    salt=self.pending_reveal["salt"],
+                    wait_for_inclusion=True,
+                )
+                if reveal_success:
+                    bt.logging.success(f"Reveal succeeded: {reveal_msg}")
+                    self.pending_reveal = None
+                else:
+                    bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
+            except Exception as e:
+                bt.logging.error(f"Reveal attempt failed: {e}")
 
         bt.logging.info("Getting current UIDs and hotkeys")
         current_uids = self.metagraph.uids.tolist()
@@ -323,7 +345,6 @@ class Validator:
                 cache_dir=self.config.cache_dir,
             )
             os.makedirs(miner_i_data_dir, exist_ok=True)
-
 
         for uid_i in uids_to_check_duplicate:
             if uid_i in processed_uids:
@@ -571,7 +592,9 @@ class Validator:
         if self.should_set_weights():
             bt.logging.info(f"blocks to epoch less than threshold")
             bt.logging.info(f"Setting weights on chain for netuid {self.config.netuid}")
-            set_weights_with_err_msg(
+            # Create a fresh salt for this commitment
+            commit_salt = list(os.urandom(8))
+            success, commit_msg, _ = set_weights_with_err_msg(
                 subtensor=self.subtensor,
                 wallet=self.wallet,
                 netuid=self.config.netuid,
@@ -579,8 +602,18 @@ class Validator:
                 weights=weights_py,
                 wait_for_inclusion=True,
                 ss58_address=self.wallet.hotkey.ss58_address,
-                salt=self.salt,
+                salt=commit_salt,
             )
+            if success:
+                # Persist pending reveal state using floats; helper will scale consistently
+                self.pending_reveal = {
+                    "uids": uids_py,
+                    "weights": weights_py,
+                    "salt": commit_salt,
+                }
+                bt.logging.info("Stored pending reveal state for next interval")
+            else:
+                bt.logging.warning(f"Commit did not succeed: {commit_msg}")
             next_epoch_block = self.subtensor.get_next_epoch_start_block(
                 self.config.netuid
             )
