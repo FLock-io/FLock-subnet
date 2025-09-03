@@ -1,11 +1,18 @@
 import torch
 import bittensor as bt
 from flockoff.miners.data import ModelId, ModelMetadata
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, List
 from flockoff import constants
 from bittensor.core.extrinsics.commit_weights import commit_weights_extrinsic
 from bittensor.utils.weight_utils import generate_weight_hash
 from bittensor.core.settings import version_as_int
+try:
+    # Optional: available in newer bittensor versions supporting commit–reveal
+    from bittensor.core.extrinsics.reveal_weights import (
+        reveal_weights_extrinsic,  # type: ignore
+    )
+except Exception:  # pragma: no cover - guard for environments without reveal extrinsic
+    reveal_weights_extrinsic = None  # type: ignore
 
 def retrieve_model_metadata(
     subtensor: bt.subtensor, subnet_uid: int, hotkey: str
@@ -78,20 +85,20 @@ def set_weights_with_err_msg(
     subtensor: bt.subtensor,
     wallet: bt.wallet,
     netuid: int,
-    uids: [torch.LongTensor, list],
+    uids: Union[torch.LongTensor, list],
     weights: Union[torch.FloatTensor, list],
     ss58_address: str,
-    salt: list[int],
+    salt: List[int],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     max_retries: int = 5,
-) -> Tuple[bool, str, list[Exception]]:
+) -> Tuple[bool, str, List[Exception]]:
     """Same as subtensor.set_weights, but with additional error messages."""
     uid = subtensor.get_uid_for_hotkey_on_subnet(wallet.hotkey.ss58_address, netuid)
     retries = 0
     success = False
     message = "No attempt made. Perhaps it is too soon to set weights!"
-    exceptions = []
+    exceptions: List[Exception] = []
 
     while (
         subtensor.blocks_since_last_update(netuid, uid) > subtensor.weights_rate_limit(netuid)  # type: ignore
@@ -122,6 +129,78 @@ def set_weights_with_err_msg(
 
         except Exception as e:
             bt.logging.exception(f"Error setting weights: {e}")
+            exceptions.append(e)
+        finally:
+            retries += 1
+
+    return success, message, exceptions
+
+
+def reveal_weights_with_err_msg(
+    subtensor: bt.subtensor,
+    wallet: bt.wallet,
+    netuid: int,
+    uids: Union[torch.LongTensor, list],
+    values: Union[torch.FloatTensor, list],
+    salt: List[int],
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = False,
+    max_retries: int = 5,
+) -> Tuple[bool, str, List[Exception]]:
+    """Reveal previously committed weights with additional error messages.
+
+    Args:
+        subtensor: Subtensor handle.
+        wallet: Validator wallet.
+        netuid: Subnet UID.
+        uids: UIDs list matching the committed commitment.
+        values: Integer weight values used for commitment (scaled by SCORE_PRECISION).
+        salt: The exact salt used during commitment.
+        wait_for_inclusion: Wait for inclusion.
+        wait_for_finalization: Wait for finalization.
+        max_retries: Retry count on transient errors.
+
+    Returns:
+        (success, message, exceptions)
+    """
+    retries = 0
+    success = False
+    message = "Reveal extrinsic not available"
+    exceptions: List[Exception] = []
+
+    if reveal_weights_extrinsic is None:
+        bt.logging.warning(
+            "Reveal weights extrinsic is not available in this bittensor version; skipping reveal."
+        )
+        return success, message, exceptions
+
+    # Ensure values are integers (already scaled). If floats are provided, scale them here.
+    if isinstance(values, torch.Tensor):
+        values = values.tolist()
+    # Convert to int list if needed.
+    if values and isinstance(values[0], float):
+        values = [int(round(v * constants.SCORE_PRECISION)) for v in values]  # type: ignore
+
+    while retries < max_retries:
+        try:
+            success, message = reveal_weights_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuid=netuid,
+                uids=uids,
+                values=values,  # type: ignore[arg-type]
+                salt=salt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+
+            if (wait_for_inclusion or wait_for_finalization) and success:
+                return success, message, exceptions
+
+            if success:
+                return success, message, exceptions
+        except Exception as e:
+            bt.logging.exception(f"Error revealing weights: {e}")
             exceptions.append(e)
         finally:
             retries += 1
