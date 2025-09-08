@@ -230,27 +230,6 @@ class Validator:
             bt.logging.warning("Failed to sync metagraph")
             return
 
-        # Try to reveal previously committed weights if any
-        if self.pending_reveal is not None:
-            try:
-                bt.logging.info("Attempting to reveal previously committed weights")
-                reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
-                    subtensor=self.subtensor,
-                    wallet=self.wallet,
-                    netuid=self.config.netuid,
-                    uids=self.pending_reveal["uids"],
-                    weights=self.pending_reveal["weights"],
-                    salt=self.pending_reveal["salt"],
-                    wait_for_inclusion=True,
-                )
-                if reveal_success:
-                    bt.logging.success(f"Reveal succeeded: {reveal_msg}")
-                    self.pending_reveal = None
-                else:
-                    bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
-            except Exception as e:
-                bt.logging.error(f"Reveal attempt failed: {e}")
-
         bt.logging.info("Getting current UIDs and hotkeys")
         current_uids = self.metagraph.uids.tolist()
         hotkeys = self.metagraph.hotkeys
@@ -441,6 +420,27 @@ class Validator:
                 self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
 
         for uid in uids_to_eval:
+            # Try to reveal previously committed weights if any
+            if self.pending_reveal is not None:
+                try:
+                    bt.logging.info("Attempting to reveal previously committed weights")
+                    reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
+                        subtensor=self.subtensor,
+                        wallet=self.wallet,
+                        netuid=self.config.netuid,
+                        uids=self.pending_reveal["uids"],
+                        weights=self.pending_reveal["weights"],
+                        salt=self.pending_reveal["salt"],
+                        wait_for_inclusion=True,
+                    )
+                    if reveal_success:
+                        bt.logging.success(f"Reveal succeeded: {reveal_msg}")
+                        self.pending_reveal = None
+                    else:
+                        bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
+                except Exception as e:
+                    bt.logging.error(f"Reveal attempt failed: {e}")
+
             current_raw_score = raw_scores_this_epoch.get(uid)
             if current_raw_score is not None and current_raw_score == constants.DEFAULT_RAW_SCORE:
                 bt.logging.info(f"The dataset for UID {uid} is invalid.")
