@@ -12,7 +12,6 @@ def retrieve_model_metadata(
 ) -> Optional[ModelMetadata]:
     """Retrieves model metadata on this subnet for specific hotkey"""
     metadata = bt.core.extrinsics.serving.get_metadata(subtensor, subnet_uid, hotkey)
-    bt.logging.debug(f"metadata: {metadata}")
 
     if not metadata:
         return None
@@ -20,7 +19,6 @@ def retrieve_model_metadata(
     try:
         # From the debug output, we can see metadata is a dictionary with nested structure
         commitment = metadata["info"]["fields"][0]
-        bt.logging.debug(f"Commitment structure: {commitment}")
 
         chain_str = None
 
@@ -39,7 +37,6 @@ def retrieve_model_metadata(
                 raw_data = commitment[0][raw_key][0]
                 # Convert the tuple of integers to a string
                 chain_str = "".join(chr(i) for i in raw_data)
-                bt.logging.debug(f"Parsed chain string: {chain_str}")
             else:
                 bt.logging.error(f"No Raw key found in commitment: {commitment}")
                 return None
@@ -138,7 +135,7 @@ def reveal_weights_with_err_msg(
     salt: List[int],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
-    max_retries: int = 5,
+    max_retries: int = 2,
 ) -> Tuple[bool, str, List[Exception]]:
 
     retries = 0

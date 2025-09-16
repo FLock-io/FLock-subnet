@@ -18,11 +18,11 @@ class Competition:
     """Class defining model parameters"""
     id: str = "1"
     repo: str = "flock-io/flock-off-s1-text-2-sql"
-    bench: float = 0.16
-    minb: float = 0.135
-    maxb: float = 0.165
+    bench: float = 2.60
+    minb: float = 2.40
+    maxb: float = 2.80
     bheight: float = 0.05
-    pow: int = 10
+    pow: int = 2
     rows: int = 250
 
     @classmethod
