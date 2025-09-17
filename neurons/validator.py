@@ -333,8 +333,6 @@ class Validator:
                 continue
 
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
-            bt.logging.info(f"Using data directory: {miner_i_data_dir}")
-            bt.logging.info(f"Using evaluation directory: {eval_data_dir}")
 
             try:
                 eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
@@ -377,7 +375,6 @@ class Validator:
                         )
                         continue
                     try:
-                        bt.logging.info(f"Using data directory: {miner_j_data_dir}")
                         os.makedirs(miner_j_data_dir, exist_ok=True)
                         bt.logging.info(
                             f"Downloading training dataset: {metadata_j.id.namespace}/{metadata_j.id.commit}"
