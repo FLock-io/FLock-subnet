@@ -83,9 +83,12 @@ def compute_score(
         denominator = np.pow((max_bench - benchmark_loss), power)
         return numerator / denominator + bench_height
 
-def load_jsonl(path):
+def load_jsonl(path, max_rows=None):
     with open(path, 'r', encoding='utf-8') as f:
-        return [json.loads(line.strip()) for line in f if line.strip()]
+        data = [json.loads(line.strip()) for line in f if line.strip()]
+        if max_rows is not None:
+            data = data[:max_rows]
+        return data
 
 def count_similar(jsonl1, jsonl2):
     set1 = set(json.dumps(item, sort_keys=True) for item in jsonl1)
