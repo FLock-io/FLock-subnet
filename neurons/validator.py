@@ -518,7 +518,7 @@ class Validator:
 
         bt.logging.info("Normalizing raw scores")
         normalized_scores_this_epoch = {}
-        for uid in uids_to_eval:
+        for uid in uids_to_check_duplicate:
             current_raw_score = raw_scores_this_epoch.get(uid)
             if current_raw_score is not None:
                 bt.logging.debug(
