@@ -17,7 +17,7 @@ SCORE_PRECISION = 10_000
 class Competition:
     """Class defining model parameters"""
     id: str = "1"
-    repo: str = "flock-io/flock-off-s1-text-2-sql"
+    repo: str = "flock-io/flock-off-s1-character-roleplay"
     bench: float = 2.60
     minb: float = 2.40
     maxb: float = 2.80
@@ -32,4 +32,4 @@ class Competition:
 
 
 # eval dataset huggingface
-eval_commit = "f39608ce0921580ccea12cd31e60890797a15ba1"
+eval_commit = "784fbf1e78d16c512750e3bb5391fa6b338818ae"
