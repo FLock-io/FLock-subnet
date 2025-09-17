@@ -335,8 +335,9 @@ class Validator:
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
 
             try:
+                # Load full eval dataset for validation check
                 eval_data_jsonl = load_jsonl(os.path.join(eval_data_dir, "data.jsonl"))
-                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"))
+                miner_i_data_jsonl = load_jsonl(os.path.join(miner_i_data_dir, "data.jsonl"), max_rows=competition.rows)
             except FileNotFoundError as e:
                 bt.logging.warning(f"Data file not found for UID {uid_i}: {e}")
                 bt.logging.info(f"Assigning fallback score to UID {uid_i} due to missing data file")
@@ -386,7 +387,7 @@ class Validator:
                             cache_dir=self.config.cache_dir,
                         )
 
-                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"))
+                        miner_j_data_jsonl = load_jsonl(os.path.join(miner_j_data_dir, "data.jsonl"), max_rows=competition.rows)
                     except FileNotFoundError as e:
                         bt.logging.warning(f"Data file not found for UID {uid_j} during duplicate check: {e}")
                         continue
