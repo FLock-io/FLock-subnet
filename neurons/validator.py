@@ -323,7 +323,7 @@ class Validator:
                 metadata_i.id.commit,
                 local_dir=miner_i_data_dir,
                 cache_dir=self.config.cache_dir,
-                force=random.random() < 0.1
+                force=random.random() < 0.2
             )
             os.makedirs(miner_i_data_dir, exist_ok=True)
 
