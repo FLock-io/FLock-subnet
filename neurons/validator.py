@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import torch
 import typing
+import random
 import bittensor as bt
 import numpy as np
 import json
@@ -322,6 +323,7 @@ class Validator:
                 metadata_i.id.commit,
                 local_dir=miner_i_data_dir,
                 cache_dir=self.config.cache_dir,
+                force=random.random() < 0.2
             )
             os.makedirs(miner_i_data_dir, exist_ok=True)
 

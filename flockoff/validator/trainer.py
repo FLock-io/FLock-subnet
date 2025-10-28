@@ -40,7 +40,7 @@ class LoraTrainingArguments:
 
 
 def download_dataset(
-    namespace: str, revision: str, local_dir: str = "data", cache_dir: str = None
+    namespace: str, revision: str, local_dir: str = "data", cache_dir: str = None, force: bool = False
 ):
     # Create cache directory if it doesn't exist
     if cache_dir:
@@ -53,17 +53,22 @@ def download_dataset(
 
     db = ScoreDB("scores.db")
     last = db.get_revision(namespace)
+
     # only skip if we've recorded the same revision *and* dir still exists
     if last == revision and os.path.isdir(local_dir):
-        bt.logging.info(
-            f"[HF] {namespace}@{revision} already present; skipping download."
-        )
-        return
+        if not force:
+            bt.logging.info(
+                f"[HF] {namespace}@{revision} already present; skipping download."
+            )
+            return
     # if revision changed and dir exists, clear it so we'll redownload clean
     if last is not None and last != revision and os.path.isdir(local_dir):
         bt.logging.info(
             f"[HF] Revision changed: {last} → {revision}, removing old data."
         )
+        shutil.rmtree(local_dir, ignore_errors=True)
+    if force:
+        bt.logging.info(f"[HF] Force dataset download {namespace}@{revision} → {local_dir}")
         shutil.rmtree(local_dir, ignore_errors=True)
     # make sure the folder is there before we download
     os.makedirs(local_dir, exist_ok=True)
