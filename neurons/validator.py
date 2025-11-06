@@ -362,12 +362,13 @@ class Validator:
                 )
                 continue
 
-            similar_uids = [uid_i]
+
             for uid_j in uids_to_eval:
                 if (
                         uid_i != uid_j
                         and uid_j not in processed_uids
                 ):
+                    similar_uids = [uid_i]
                     miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
                     metadata_j = retrieve_model_metadata(
                         self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_j]
@@ -403,10 +404,10 @@ class Validator:
                         )
                         similar_uids.append(uid_j)
 
-            if len(similar_uids) > 1:
-                bt.logging.info(f"Found duplicate group: {similar_uids}")
-                duplicate_groups.append(similar_uids)
-                processed_uids.update(similar_uids)
+                    if len(similar_uids) > 1:
+                        bt.logging.info(f"Found duplicate group: {similar_uids}")
+                        duplicate_groups.append(similar_uids)
+                        processed_uids.update(similar_uids)
 
         duplicates = set()
         for group in duplicate_groups:
