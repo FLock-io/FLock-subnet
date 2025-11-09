@@ -17,14 +17,201 @@
 import os
 import argparse
 import asyncio
+import logging
+import threading
+import time
 import torch
 import typing
 import random
+import atexit
+import sys
+
+try:
+    import requests
+except ImportError:  # pragma: no cover
+    requests = None  # type: ignore[assignment]
 import bittensor as bt
 import numpy as np
 import json
 import hashlib
 from dataclasses import asdict
+from typing import Dict, List, Tuple
+
+
+class LokiBatchHandler(logging.Handler):
+    """Batch log records and push them to Grafana Cloud Loki."""
+
+    def __init__(
+        self,
+        *,
+        url: str,
+        username: str,
+        password: str,
+        labels: Dict[str, str],
+        flush_interval: float,
+        max_buffer: int = 5000,
+        request_timeout: float = 10.0,
+    ) -> None:
+        super().__init__()
+        if requests is None:
+            raise RuntimeError("requests library is required for Loki logging.")
+        self.url = url
+        self.auth = (username, password)
+        self.labels = labels
+        self.flush_interval = max(1.0, float(flush_interval))
+        self.max_buffer = max_buffer
+        self.request_timeout = request_timeout
+        self._buffer: List[Tuple[int, str]] = []
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._flush_event = threading.Event()
+        self._session = requests.Session()
+        self._flush_thread = threading.Thread(
+            target=self._flush_loop, name="GrafanaLokiFlush", daemon=True
+        )
+        self._flush_thread.start()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = self.format(record)
+        except Exception:
+            message = record.getMessage()
+
+        timestamp_ns = int(record.created * 1_000_000_000)
+        should_flush_immediately = False
+
+        with self._lock:
+            self._buffer.append((timestamp_ns, message))
+            if len(self._buffer) >= self.max_buffer:
+                should_flush_immediately = True
+
+        if should_flush_immediately:
+            self._flush()
+        else:
+            self._flush_event.set()
+
+    def _flush_loop(self) -> None:
+        while not self._stop_event.is_set():
+            triggered = self._flush_event.wait(self.flush_interval)
+            self._flush_event.clear()
+            if triggered or not self._stop_event.is_set():
+                self._flush()
+
+        # Final flush on exit
+        self._flush()
+
+    def _flush(self) -> None:
+        batch: List[Tuple[int, str]] = []
+        with self._lock:
+            if not self._buffer:
+                return
+            batch = self._buffer
+            self._buffer = []
+
+        payload = {
+            "streams": [
+                {
+                    "stream": self.labels,
+                    "values": [[str(ts), line] for ts, line in batch],
+                }
+            ]
+        }
+
+        try:
+            response = self._session.post(
+                self.url,
+                json=payload,
+                auth=self.auth,
+                timeout=self.request_timeout,
+            )
+            if response.status_code >= 400:
+                self._handle_flush_failure(batch, f"HTTP {response.status_code}: {response.text.strip()}")
+        except Exception as err:  # pylint: disable=broad-except
+            self._handle_flush_failure(batch, repr(err))
+
+    def _handle_flush_failure(self, batch: List[Tuple[int, str]], reason: str) -> None:
+        # Requeue the failed batch (newest logs kept if exceeding max_buffer)
+        with self._lock:
+            batch.extend(self._buffer)
+            self._buffer = batch[-self.max_buffer :]
+        try:
+            sys.stderr.write(f"[GrafanaLokiHandler] Failed to push logs: {reason}\n")
+        except Exception:
+            # If stderr write fails, ignore to avoid recursive logging.
+            pass
+
+    def close(self) -> None:
+        self._stop_event.set()
+        self._flush_event.set()
+        if self._flush_thread.is_alive():
+            self._flush_thread.join(timeout=self.flush_interval + 1.0)
+        self._flush()
+        try:
+            self._session.close()
+        finally:
+            super().close()
+
+
+_LOKI_HANDLER: typing.Optional[LokiBatchHandler] = None
+_LOKI_HANDLER_LOCK = threading.Lock()
+
+
+def setup_loki_logging_from_env() -> typing.Optional[LokiBatchHandler]:
+    """Configure Loki logging handler once per process based on environment variables."""
+    global _LOKI_HANDLER
+
+    with _LOKI_HANDLER_LOCK:
+        if _LOKI_HANDLER is not None:
+            return _LOKI_HANDLER
+
+        if requests is None:
+            try:
+                sys.stderr.write(
+                    "[GrafanaLokiHandler] requests library not available; skipping Loki setup.\n"
+                )
+            except Exception:
+                pass
+            return None
+
+        loki_url = os.getenv("GRAFANA_LOKI_URL")
+        loki_username = os.getenv("GRAFANA_LOKI_USERNAME")
+        loki_password = os.getenv("GRAFANA_LOKI_PASSWORD")
+        validator_hotkey = os.getenv("VALIDATOR_HOTKEY")
+        subnet = os.getenv("SUBNET")
+
+        if not all([loki_url, loki_username, loki_password, validator_hotkey]):
+            return None
+
+        try:
+            flush_interval = float(os.getenv("LOKI_FLUSH_INTERVAL_SECS", "300"))
+        except ValueError:
+            flush_interval = 300.0
+
+        labels: Dict[str, str] = {
+            "app": "validator",
+            "validator_hotkey": validator_hotkey,
+        }
+        if subnet:
+            labels["subnet"] = subnet
+
+        handler = LokiBatchHandler(
+            url=loki_url,
+            username=loki_username,
+            password=loki_password,
+            labels=labels,
+            flush_interval=flush_interval,
+        )
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
+
+        _LOKI_HANDLER = handler
+        atexit.register(handler.close)
+        return handler
 from flockoff.constants import Competition
 from flockoff import constants
 from flockoff.utils.chain import assert_registered
@@ -104,6 +291,7 @@ class Validator:
         return config
 
     def __init__(self):
+        self._loki_handler = setup_loki_logging_from_env()
         bt.logging.info("Initializing validator")
         self.config = Validator.config()
 
