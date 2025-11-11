@@ -39,6 +39,7 @@ class ScoreDB:
             )
             self._add_column_if_not_exists(c, 'miner_scores', 'namespace', 'TEXT')
             self._add_column_if_not_exists(c, 'miner_scores', 'revision', 'TEXT')
+            self._add_column_if_not_exists(c, 'miner_scores', ' raw_loss', 'REAL')
 
             self.conn.commit()
         except sqlite3.Error as e:
@@ -153,6 +154,21 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to insert/reset UID {uid}: {str(e)}")
             raise DatabaseError(f"Failed to insert/reset UID: {str(e)}") from e
+
+    def update_raw_loss(self, uid: int, loss: float):
+        """Update the raw loss for a given UID."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "UPDATE miner_scores SET raw_loss = ? WHERE uid = ?", (loss, uid)
+            )
+            if c.rowcount == 0:
+                # If somehow a UID is being updated that wasn't inserted, log a warning or error.
+                logger.warning(f"Attempted to update raw_loss for non-existent UID {uid}, no changes made.")
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Failed to update raw_loss for UID {uid}: {str(e)}")
+            raise DatabaseError(f"Failed to update raw_loss: {str(e)}") from e
 
     def update_raw_eval_score(self, uid: int, new_raw_score: float):
         """Update the raw evaluation score for a given UID."""
