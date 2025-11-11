@@ -39,7 +39,7 @@ class ScoreDB:
             )
             self._add_column_if_not_exists(c, 'miner_scores', 'namespace', 'TEXT')
             self._add_column_if_not_exists(c, 'miner_scores', 'revision', 'TEXT')
-            self._add_column_if_not_exists(c, 'miner_scores', ' raw_loss', 'REAL')
+            self._add_column_if_not_exists(c, 'miner_scores', 'raw_loss', 'REAL')
 
             self.conn.commit()
         except sqlite3.Error as e:
