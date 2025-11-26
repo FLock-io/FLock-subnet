@@ -38,6 +38,7 @@ from flockoff.validator.validator_utils import compute_score, load_jsonl, count_
 from flockoff.validator.trainer import (
     train_lora,
     download_dataset,
+    check_valid_revision
 )
 from flockoff.validator.database import ScoreDB
 
@@ -362,7 +363,6 @@ class Validator:
                 )
                 continue
 
-
             for uid_j in uids_to_eval:
                 if (
                         uid_i != uid_j
@@ -466,6 +466,13 @@ class Validator:
                 revision = metadata.id.commit
                 last_rev = self.score_db.get_score_revision(uid, ns)
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
+                if not check_valid_revision(namespace=ns, revision=revision):
+                    raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
+                    bt.logging.info(
+                        f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid} due to the dataset hash is invalid"
+                    )
+                    continue
                 if last_rev == revision:
                     bt.logging.info(
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
