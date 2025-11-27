@@ -57,9 +57,6 @@ def download_dataset(
     # only skip if we've recorded the same revision *and* dir still exists
     if last == revision and os.path.isdir(local_dir):
         if not force:
-            bt.logging.info(
-                f"[HF] {namespace}@{revision} already present; skipping download."
-            )
             return
     # if revision changed and dir exists, clear it so we'll redownload clean
     if last is not None and last != revision and os.path.isdir(local_dir):
@@ -80,6 +77,21 @@ def download_dataset(
 
     db.set_revision(namespace, revision)
     time.sleep(1)
+
+
+def check_valid_revision(namespace: str, revision: str):
+    try:
+        repo_info = HfApi(token=os.environ["HF_TOKEN"]).repo_info(repo_id=namespace, revision=revision, repo_type="dataset")
+    except Exception as e:
+        bt.logging.error(f"Error fetching repo info for repo {namespace} and revision {revision}: {e}")
+        return False
+    # Cut down the commit hash to the same amount of characters as the revision to compare them
+    # Enforce a 7 character length minimum for the revision to prevent collisions
+    revision_length = max(len(revision), 7)
+    if repo_info.sha[:revision_length] != revision:
+        bt.logging.error(f"revision {revision} does not match the commit hash {repo_info.sha}")
+        return False
+    return True
 
 def reset_gpu():
     """Reset GPU state and clear memory"""
@@ -119,7 +131,7 @@ def train_lora(
     try:
         # Reset GPU state at the start
         reset_gpu()
-        
+
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)
             os.environ["HF_HOME"] = cache_dir
@@ -270,19 +282,19 @@ def train_lora(
 
         # Eval model
         eval_result = eval_trainer.evaluate()
-        
+
         # Thorough cleanup
         safe_cuda_cleanup(eval_model)
         safe_cuda_cleanup(eval_trainer)
         safe_cuda_cleanup(trainer)
         safe_cuda_cleanup(model)
         safe_cuda_cleanup(tokenizer)
-        
+
         # Clear any remaining CUDA memory
         reset_gpu()
-        
+
         return eval_result["eval_loss"]
-        
+
     except Exception as e:
         bt.logging.error(f"Error during training: {e}")
         # Attempt to clean up in case of error
@@ -300,5 +312,5 @@ def train_lora(
             reset_gpu()
         except Exception as cleanup_error:
             bt.logging.error(f"Error during cleanup after training error: {cleanup_error}")
-        
+
         return benchmark_loss

@@ -38,6 +38,7 @@ from flockoff.validator.validator_utils import compute_score, load_jsonl, count_
 from flockoff.validator.trainer import (
     train_lora,
     download_dataset,
+    check_valid_revision
 )
 from flockoff.validator.database import ScoreDB
 
@@ -164,6 +165,29 @@ class Validator:
         self.pending_reveal: typing.Optional[dict] = None
         self._update_score_init()
         bt.logging.info("Validator ready to run")
+
+    def get_registration_block(self, uid: int) -> typing.Optional[int]:
+        """Get the block at which a UID was registered on the subnet.
+        
+        Args:
+            uid: The unique identifier of the neuron.
+            
+        Returns:
+            The block number when the UID was registered, or None if query fails.
+        """
+        try:
+            result = self.subtensor.query_subtensor(
+                "BlockAtRegistration", 
+                params=[self.config.netuid, uid]
+            )
+            if result is not None:
+                # The result is a BittensorScaleType, extract the value
+                registration_block = int(result.value) if hasattr(result, 'value') else int(result)
+                return registration_block
+            return None
+        except Exception as e:
+            bt.logging.warning(f"Failed to get registration block for UID {uid}: {e}")
+            return None
 
     def _update_score_init(self):
         bt.logging.info("start to update score init")
@@ -308,16 +332,30 @@ class Validator:
 
             if metadata_i is None:
                 bt.logging.debug(
-                    f"Skipping UID {uid_i}  (metadata is None)"
+                    f"UID {uid_i} has no metadata, assigning default score"
                 )
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
                 continue
+            
+            # Check if commitment block is greater than registration block
+            registration_block = self.get_registration_block(uid_i)
+            
             metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
             block_per_uid[uid_i] = metadata_i.block
 
             bt.logging.info(
-                f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
+                f"Downloading {uid_i}:{self.metagraph.hotkeys[uid_i]} training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}, block:{metadata_i.block}"
             )
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            if registration_block is not None and metadata_i.block <= registration_block:
+                bt.logging.warning(
+                    f"UID {uid_i} has commitment block {metadata_i.block} <= registration block {registration_block}. "
+                    f"Assigning score of 0 to prevent claiming prior submissions."
+                )
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
             download_dataset(
                 metadata_i.id.namespace,
                 metadata_i.id.commit,
@@ -362,7 +400,6 @@ class Validator:
                 )
                 continue
 
-
             for uid_j in uids_to_eval:
                 if (
                         uid_i != uid_j
@@ -380,9 +417,6 @@ class Validator:
                         continue
                     try:
                         os.makedirs(miner_j_data_dir, exist_ok=True)
-                        bt.logging.info(
-                            f"Downloading training dataset: {metadata_j.id.namespace}/{metadata_j.id.commit}"
-                        )
                         download_dataset(
                             metadata_j.id.namespace,
                             metadata_j.id.commit,
@@ -466,6 +500,13 @@ class Validator:
                 revision = metadata.id.commit
                 last_rev = self.score_db.get_score_revision(uid, ns)
                 bt.logging.info(f"Metadata namespace: {ns}, commit: {revision}")
+                if not check_valid_revision(namespace=ns, revision=revision):
+                    raw_scores_this_epoch[uid] = constants.DEFAULT_RAW_SCORE
+                    self.score_db.update_raw_eval_score(uid, constants.DEFAULT_RAW_SCORE)
+                    bt.logging.info(
+                        f"Assigned fallback score {constants.DEFAULT_RAW_SCORE:.6f} to UID {uid} due to the dataset hash is invalid"
+                    )
+                    continue
                 if last_rev == revision:
                     bt.logging.info(
                         f"Skipping UID {uid} as it has already been evaluated with revision {revision}"
@@ -501,6 +542,7 @@ class Validator:
 
                     raw_scores_this_epoch[uid] = eval_loss
                     self.score_db.update_raw_eval_score(uid, eval_loss)
+                    self.score_db.update_raw_loss(uid, eval_loss)
                     self.score_db.set_score_revision(uid, ns, revision, self.metagraph.hotkeys[uid])
 
                     bt.logging.info(f"Stored evaluation results for UID {uid}")
