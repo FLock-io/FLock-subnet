@@ -418,9 +418,6 @@ class Validator:
                         continue
                     try:
                         os.makedirs(miner_j_data_dir, exist_ok=True)
-                        bt.logging.info(
-                            f"Downloading training dataset: {metadata_j.id.namespace}/{metadata_j.id.commit}"
-                        )
                         download_dataset(
                             metadata_j.id.namespace,
                             metadata_j.id.commit,
