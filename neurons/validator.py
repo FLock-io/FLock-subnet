@@ -183,7 +183,6 @@ class Validator:
             if result is not None:
                 # The result is a BittensorScaleType, extract the value
                 registration_block = int(result.value) if hasattr(result, 'value') else int(result)
-                bt.logging.debug(f"UID {uid} registration block: {registration_block}")
                 return registration_block
             return None
         except Exception as e:
@@ -346,7 +345,7 @@ class Validator:
             block_per_uid[uid_i] = metadata_i.block
 
             bt.logging.info(
-                f"Downloading {self.metagraph.hotkeys[uid_i]} training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}, block:{metadata_i.block}"
+                f"Downloading {uid_i}:{self.metagraph.hotkeys[uid_i]} training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}, block:{metadata_i.block}"
             )
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
             if registration_block is not None and metadata_i.block <= registration_block:
