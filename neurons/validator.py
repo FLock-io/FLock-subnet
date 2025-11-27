@@ -354,7 +354,7 @@ class Validator:
             block_per_uid[uid_i] = metadata_i.block
 
             bt.logging.info(
-                f"Downloading training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}"
+                f"Downloading {self.metagraph.hotkeys[uid_i]} training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}, block:{metadata_i.block}"
             )
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
             download_dataset(

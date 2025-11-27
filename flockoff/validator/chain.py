@@ -54,7 +54,6 @@ def retrieve_model_metadata(
         model_id = None
         try:
             model_id = ModelId.from_compressed_str(chain_str)
-            bt.logging.info(f"Successfully parsed model ID: {model_id}")
         except Exception as e:
             # If the metadata format is not correct on the chain then we return None.
             bt.logging.error(
