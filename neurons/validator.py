@@ -407,9 +407,7 @@ class Validator:
                 ):
                     similar_uids = [uid_i]
                     miner_j_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_j}")
-                    metadata_j = retrieve_model_metadata(
-                        self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid_j]
-                    )
+                    metadata_j = metadata_per_uid.get(uid_j)
                     if metadata_j is None:
                         bt.logging.debug(
                             f"Skipping UID {uid_j}  (metadata is None)"
@@ -484,9 +482,7 @@ class Validator:
             bt.logging.info(
                 f"Retrieving model metadata for hotkey: {self.metagraph.hotkeys[uid]}"
             )
-            metadata = retrieve_model_metadata(
-                self.subtensor, self.config.netuid, self.metagraph.hotkeys[uid]
-            )
+            metadata = metadata_per_uid.get(uid)
 
             if self.should_set_weights():
                 bt.logging.info(
