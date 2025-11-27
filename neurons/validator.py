@@ -341,14 +341,6 @@ class Validator:
             
             # Check if commitment block is greater than registration block
             registration_block = self.get_registration_block(uid_i)
-            if registration_block is not None and metadata_i.block <= registration_block:
-                bt.logging.warning(
-                    f"UID {uid_i} has commitment block {metadata_i.block} <= registration block {registration_block}. "
-                    f"Assigning score of 0 to prevent claiming prior submissions."
-                )
-                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
-                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
-                continue
             
             metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
             block_per_uid[uid_i] = metadata_i.block
@@ -357,6 +349,14 @@ class Validator:
                 f"Downloading {self.metagraph.hotkeys[uid_i]} training dataset: {metadata_i.id.namespace}/{metadata_i.id.commit}, block:{metadata_i.block}"
             )
             miner_i_data_dir = os.path.join(self.config.data_dir, f"miner_{uid_i}")
+            if registration_block is not None and metadata_i.block <= registration_block:
+                bt.logging.warning(
+                    f"UID {uid_i} has commitment block {metadata_i.block} <= registration block {registration_block}. "
+                    f"Assigning score of 0 to prevent claiming prior submissions."
+                )
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
             download_dataset(
                 metadata_i.id.namespace,
                 metadata_i.id.commit,
