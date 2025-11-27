@@ -57,9 +57,6 @@ def download_dataset(
     # only skip if we've recorded the same revision *and* dir still exists
     if last == revision and os.path.isdir(local_dir):
         if not force:
-            bt.logging.info(
-                f"[HF] {namespace}@{revision} already present; skipping download."
-            )
             return
     # if revision changed and dir exists, clear it so we'll redownload clean
     if last is not None and last != revision and os.path.isdir(local_dir):
