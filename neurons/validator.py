@@ -166,6 +166,30 @@ class Validator:
         self._update_score_init()
         bt.logging.info("Validator ready to run")
 
+    def get_registration_block(self, uid: int) -> typing.Optional[int]:
+        """Get the block at which a UID was registered on the subnet.
+        
+        Args:
+            uid: The unique identifier of the neuron.
+            
+        Returns:
+            The block number when the UID was registered, or None if query fails.
+        """
+        try:
+            result = self.subtensor.query_subtensor(
+                "BlockAtRegistration", 
+                params=[self.config.netuid, uid]
+            )
+            if result is not None:
+                # The result is a BittensorScaleType, extract the value
+                registration_block = int(result.value) if hasattr(result, 'value') else int(result)
+                bt.logging.debug(f"UID {uid} registration block: {registration_block}")
+                return registration_block
+            return None
+        except Exception as e:
+            bt.logging.warning(f"Failed to get registration block for UID {uid}: {e}")
+            return None
+
     def _update_score_init(self):
         bt.logging.info("start to update score init")
         current_uids = self.metagraph.uids.tolist()
@@ -309,9 +333,23 @@ class Validator:
 
             if metadata_i is None:
                 bt.logging.debug(
-                    f"Skipping UID {uid_i}  (metadata is None)"
+                    f"UID {uid_i} has no metadata, assigning default score"
                 )
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
                 continue
+            
+            # Check if commitment block is greater than registration block
+            registration_block = self.get_registration_block(uid_i)
+            if registration_block is not None and metadata_i.block <= registration_block:
+                bt.logging.warning(
+                    f"UID {uid_i} has commitment block {metadata_i.block} <= registration block {registration_block}. "
+                    f"Assigning score of 0 to prevent claiming prior submissions."
+                )
+                raw_scores_this_epoch[uid_i] = constants.DEFAULT_RAW_SCORE
+                self.score_db.update_raw_eval_score(uid_i, constants.DEFAULT_RAW_SCORE)
+                continue
+            
             metadata_per_uid[uid_i] = metadata_i  # Store metadata for this UID
             block_per_uid[uid_i] = metadata_i.block
 
