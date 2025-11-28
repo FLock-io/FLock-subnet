@@ -41,7 +41,9 @@ from flockoff.validator.trainer import (
     check_valid_revision
 )
 from flockoff.validator.database import ScoreDB
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class Validator:
     @staticmethod
