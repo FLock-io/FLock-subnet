@@ -2,17 +2,18 @@ import json
 import bittensor as bt
 import numpy as np
 from flockoff import constants
+from flockoff.validator.database import ScoreDB
 
 
 def compute_score(
-    loss,
-    benchmark_loss,
-    min_bench,
-    max_bench,
-    power,
-    bench_height,
-    miner_comp_id,
-    real_comp_id,
+        loss,
+        benchmark_loss,
+        min_bench,
+        max_bench,
+        power,
+        bench_height,
+        miner_comp_id,
+        real_comp_id,
 ):
     """
     Compute the score based on the loss and benchmark loss.
@@ -83,12 +84,36 @@ def compute_score(
         denominator = np.pow((max_bench - benchmark_loss), power)
         return numerator / denominator + bench_height
 
+
+def select_winner(db: ScoreDB, competition_id: str) -> list | None:
+    subs = db.get_competition_submissions(competition_id)
+    scored = [s for s in subs.values() if s.get('eval_loss') is not None]
+    if not scored:
+        return None
+
+    losses = {s['uid']: s['eval_loss'] for s in scored}
+    L_min = min(losses.values())
+    threshold = L_min * (1.0 + constants.LOSS_THRESHOLD_PCT)
+
+    eligible = [s for s in scored if s['eval_loss'] <= threshold]
+    if not eligible:
+        return None
+
+    def sort_key(s):
+        return (s.get('commitment_block', 10 ** 18), s.get('commitment_timestamp', 10 ** 18))
+
+    eligible_sorted = sorted(eligible, key=sort_key)
+    winners = [s['uid'] for s in eligible_sorted]
+    return winners
+
+
 def load_jsonl(path, max_rows=None):
     with open(path, 'r', encoding='utf-8') as f:
         data = [json.loads(line.strip()) for line in f if line.strip()]
         if max_rows is not None:
             data = data[:max_rows]
         return data
+
 
 def count_similar(jsonl1, jsonl2):
     set1 = set(json.dumps(item, sort_keys=True) for item in jsonl1)

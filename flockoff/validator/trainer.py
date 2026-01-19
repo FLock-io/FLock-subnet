@@ -25,6 +25,7 @@ from .dataset import SFTDataCollator, SFTDataset
 from .constants import model2template
 import bittensor as bt
 from flockoff.validator.database import ScoreDB
+from flockoff import constants
 
 api = HfApi()
 
@@ -40,7 +41,7 @@ class LoraTrainingArguments:
 
 
 def download_dataset(
-    namespace: str, revision: str, local_dir: str = "data", cache_dir: str = None, force: bool = False
+        namespace: str, revision: str, local_dir: str = "data", cache_dir: str = None, force: bool = False
 ):
     # Create cache directory if it doesn't exist
     if cache_dir:
@@ -93,6 +94,16 @@ def check_valid_revision(namespace: str, revision: str):
         return False
     return True
 
+
+def get_hg_revision(namespace: str, eval_commit: str):
+    try:
+        repo_info = HfApi(token=os.environ["HF_TOKEN"]).repo_info(repo_id=namespace, revision=eval_commit, repo_type="dataset")
+    except Exception as e:
+        bt.logging.error(f"Error fetching repo info for repo {namespace} and revision {eval_commit}: {e}")
+        return None
+    return repo_info.sha
+
+
 def reset_gpu():
     """Reset GPU state and clear memory"""
     if torch.cuda.is_available():
@@ -109,6 +120,7 @@ def reset_gpu():
         except Exception as e:
             bt.logging.error(f"Error resetting GPU: {e}")
 
+
 def safe_cuda_cleanup(model):
     """Safely move model to CPU and delete it"""
     try:
@@ -120,13 +132,14 @@ def safe_cuda_cleanup(model):
     finally:
         gc.collect()
 
+
 def train_lora(
-    lucky_num: int,
-    benchmark_loss: float,
-    eval_size: int,
-    cache_dir: str = None,
-    data_dir: str = "data",
-    eval_data_dir: str = "eval_data",
+        lucky_num: int,
+        benchmark_loss: float,
+        eval_size: int,
+        cache_dir: str = None,
+        data_dir: str = "data",
+        eval_data_dir: str = "eval_data",
 ) -> float:
     try:
         # Reset GPU state at the start
@@ -139,14 +152,7 @@ def train_lora(
 
         # set the same random seed to detect duplicate data sets
         from dotenv import load_dotenv
-
         load_dotenv()
-        os.environ["PYTHONHASHSEED"] = str(lucky_num)
-
-        torch.manual_seed(lucky_num)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(lucky_num)
-            torch.cuda.manual_seed_all(lucky_num)
 
         CONTEXT_LENGTH = 2048
         with open(f"flockoff/validator/training_args.yaml", "r") as f:

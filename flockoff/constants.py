@@ -12,6 +12,13 @@ DEFAULT_DUPLICATE_COUNT = 100
 
 SCORE_PRECISION = 10_000
 
+SELECTION_SIZE = 100            # miners choose 100 rows
+LOSS_THRESHOLD_PCT = 0.10
+
+submission_start_utc_min = 12 * 60
+submission_window_mins = 30
+validate_start_utc_min = 12 * 60 + submission_window_mins
+reward_start_utc_min = 11 * 60 + 30
 
 @dataclass
 class Competition:
@@ -23,7 +30,7 @@ class Competition:
     maxb: float = 2.80
     bheight: float = 0.05
     pow: int = 2
-    rows: int = 250
+    rows: int = SELECTION_SIZE
 
     @classmethod
     def from_defaults(cls) -> "Competition":
@@ -32,4 +39,6 @@ class Competition:
 
 
 # eval dataset huggingface
-eval_commit = "784fbf1e78d16c512750e3bb5391fa6b338818ae"
+eval_commit = "main"
+
+
