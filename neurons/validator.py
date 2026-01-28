@@ -250,6 +250,7 @@ class Validator:
         bt.logging.info("Getting current UIDs and hotkeys")
         current_uids = self.metagraph.uids.tolist()
         hotkeys = self.metagraph.hotkeys
+        coldkeys = self.metagraph.coldkeys
         self.consensus = self.metagraph.C
         bt.logging.debug(f"Consensus: {self.consensus}")
 
@@ -320,7 +321,7 @@ class Validator:
                         )
                         if metadata is not None:
                             self.score_db.record_submission(self.active_competition_id,
-                                                            uid, hotkeys[uid], metadata.block,
+                                                            uid, hotkeys[uid], coldkeys[uid], metadata.block,
                                                             int(time.time()), metadata.id.namespace,
                                                             metadata.id.commit)
                     return
@@ -328,14 +329,13 @@ class Validator:
             if self.should_start_new_competition(main_commit_id):
                 bt.logging.info("STARTING NEW COMPETITION CYCLE")
                 self.score_db.update_competition_status(self.active_competition_id, CompetitionState.COMPLETED.value)
-                self.reward_competition_id = self.active_competition_id
                 self.active_competition_id = competition_id_today
                 self.use_yesterday_reward = False
                 self.score_db.create_competition(self.active_competition_id, int(now.timestamp()), main_commit_id)
 
-
             else:
                 bt.logging.info("COPY COMPETITION REWARD BEFORE")
+                bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
                 self.use_yesterday_reward = True
                 self.score_db.copy_competion_id(competition_id_today, self.active_competition_id)
                 self.score_db.update_competition_status(self.active_competition_id, CompetitionState.COMPLETED.value)
@@ -348,6 +348,27 @@ class Validator:
             if self.use_yesterday_reward:
                 time.sleep(10)
                 return
+
+            if self.pending_reveal is not None:
+                try:
+                    bt.logging.info("Attempting to reveal previously committed weights")
+                    reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
+                        subtensor=self.subtensor,
+                        wallet=self.wallet,
+                        netuid=self.config.netuid,
+                        uids=self.pending_reveal["uids"],
+                        weights=self.pending_reveal["weights"],
+                        salt=self.pending_reveal["salt"],
+                        wait_for_inclusion=True,
+                    )
+                    if reveal_success:
+                        bt.logging.info(f"Reveal succeeded: {reveal_msg}")
+                        self.pending_reveal = None
+                    else:
+                        bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
+                except Exception as e:
+                    bt.logging.error(f"Reveal attempt failed: {e}")
+
             # set status
             self.score_db.update_competition_status(self.active_competition_id, CompetitionState.VALIDATION.value)
 
@@ -583,15 +604,15 @@ class Validator:
                     self.score_db.record_submission_loss(self.active_competition_id, uid, constants.DEFAULT_RAW_SCORE, is_eligible=False)
 
         # REWARDING
-        elif constants.reward_start_utc_min < minutes_today < constants.submission_start_utc_min:
+        elif constants.reward_start_utc_min <= minutes_today < constants.submission_start_utc_min:
 
             if self.use_yesterday_reward:
                 time.sleep(10)
                 return
                 # set status
             self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
-            self.reward_competition_id = self.active_competition_id
-            winners = select_winner(self.score_db, self.active_competition_id)
+
+            winners = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys)
             bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winners} ")
             if winners:
                 new_weights = torch.zeros_like(torch.tensor(self.metagraph.S), dtype=torch.float32)
@@ -602,14 +623,15 @@ class Validator:
                         bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
                 self.weights = new_weights
                 self.reward_competition_id = self.active_competition_id
+                bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
 
             else:
                 bt.logging.error(f"There is no score for Competition_id {self.active_competition_id}")
-                raise
+                raise RuntimeError(f"No winners for competition_id {self.active_competition_id}")
 
         else:
             bt.logging.error(f"The minutes time is error: {minutes_today}")
-            raise
+            raise RuntimeError(f"No winners for competition_id {self.active_competition_id}")
 
         if self.pending_reveal is not None:
             try:
@@ -624,7 +646,7 @@ class Validator:
                     wait_for_inclusion=True,
                 )
                 if reveal_success:
-                    bt.logging.success(f"Reveal succeeded: {reveal_msg}")
+                    bt.logging.info(f"Reveal succeeded: {reveal_msg}")
                     self.pending_reveal = None
                 else:
                     bt.logging.info(f"Reveal not successful yet: {reveal_msg}")

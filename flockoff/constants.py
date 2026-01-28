@@ -1,5 +1,4 @@
 from pathlib import Path
-import bittensor as bt
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,7 +7,7 @@ DECAY_RATE = 1
 MIN_WEIGHT_THRESHOLD = 1e-6
 DEFAULT_RAW_SCORE = 999
 DEFAULT_NORMALIZED_SCORE = 0.0
-DEFAULT_DUPLICATE_COUNT = 100
+DEFAULT_DUPLICATE_COUNT = 40
 
 SCORE_PRECISION = 10_000
 

@@ -85,7 +85,7 @@ def compute_score(
         return numerator / denominator + bench_height
 
 
-def select_winner(db: ScoreDB, competition_id: str) -> list | None:
+def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict) -> list | None:
     subs = db.get_competition_submissions(competition_id)
     scored = [s for s in subs.values() if s.get('eval_loss') is not None]
     if not scored:
@@ -103,7 +103,35 @@ def select_winner(db: ScoreDB, competition_id: str) -> list | None:
         return (s.get('commitment_block', 10 ** 18), s.get('commitment_timestamp', 10 ** 18))
 
     eligible_sorted = sorted(eligible, key=sort_key)
+    scored_by_loss = sorted(scored, key=lambda s: s['eval_loss'])
     winners = [s['uid'] for s in eligible_sorted]
+
+    for s in eligible_sorted:
+        uid = s['uid']
+        if s['hotkey'] != hotkeys[uid]:
+            coldkey_replace = s['coldkey']
+            winners.remove(uid)
+            replacement_found = False
+            for hotkey_uid, hotkey in hotkeys.items():
+                if hotkey == s['hotkey']:
+                    winners.append(hotkey_uid)
+                    replacement_found = True
+            if replacement_found:
+                continue
+            for candidate in scored_by_loss:
+                candidate_uid = candidate['uid']
+                if candidate['coldkey'] == coldkey_replace and candidate_uid != uid and \
+                        candidate_uid not in winners and hotkeys[candidate_uid] == subs[candidate_uid]["hotkey"]:
+                    winners.append(candidate_uid)
+                    replacement_found = True
+                    break
+            if not replacement_found:
+                for candidate in scored_by_loss:
+                    candidate_uid = candidate['uid']
+                    if candidate_uid not in winners and candidate_uid != uid and hotkeys[candidate_uid]==subs[candidate_uid]["hotkey"]:
+                        winners.append(candidate_uid)
+                        break
+
     return winners
 
 

@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 class DatabaseError(Exception):
     """Custom exception for database-related errors."""
-
     pass
 
 
@@ -47,6 +46,7 @@ class ScoreDB:
                 """CREATE TABLE IF NOT EXISTS competition_submissions (
                            competition_id TEXT,
                            uid INTEGER,
+                           coldkey TEXT,
                            hotkey TEXT,
                            commitment_block INTEGER,
                            commitment_timestamp INTEGER,
@@ -150,15 +150,15 @@ class ScoreDB:
             logger.error(f"Failed to set update_competition_status: {str(e)}")
             raise DatabaseError(f"Failed to set update_competition_status: {str(e)}") from e
 
-    def record_submission(self, competition_id: str, uid: int, hotkey: str, commitment_block: int, commitment_timestamp: int,namespace: str,revision: str):
+    def record_submission(self, competition_id: str, uid: int, hotkey: str, coldkey: str, commitment_block: int, commitment_timestamp: int,namespace: str,revision: str):
         try:
             c = self.conn.cursor()
             c.execute(
-                "INSERT INTO competition_submissions (competition_id, uid, hotkey, commitment_block, commitment_timestamp,namespace,revision) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(competition_id, uid) DO UPDATE SET hotkey = excluded.hotkey, "
+                "INSERT INTO competition_submissions (competition_id, uid, hotkey, coldkey, commitment_block, commitment_timestamp,namespace,revision) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(competition_id, uid) DO UPDATE SET hotkey = excluded.hotkey, coldkey = excluded.coldkey,"
                 "commitment_block = excluded.commitment_block,commitment_timestamp = excluded.commitment_timestamp,"
                 "namespace = excluded.namespace,revision = excluded.revision;",
-                (competition_id, uid, hotkey, commitment_block, commitment_timestamp,namespace,revision)
+                (competition_id, uid, hotkey, coldkey, commitment_block, commitment_timestamp,namespace,revision)
             )
             self.conn.commit()
         except sqlite3.Error as e:
@@ -183,45 +183,15 @@ class ScoreDB:
         try:
             c = self.conn.cursor()
             cur = c.execute(
-                "SELECT uid, hotkey, commitment_block, commitment_timestamp, eval_loss,namespace,revision, is_eligible FROM competition_submissions WHERE competition_id = ?",
+                "SELECT uid, coldkey, hotkey, commitment_block, commitment_timestamp, eval_loss,namespace,revision, is_eligible FROM competition_submissions WHERE competition_id = ?",
                 (competition_id,)
             )
-            cols = ['uid', 'hotkey', 'commitment_block', 'commitment_timestamp', 'eval_loss', 'namespace','revision','is_eligible']
+            cols = ['uid', 'coldkey', 'hotkey', 'commitment_block', 'commitment_timestamp', 'eval_loss', 'namespace','revision','is_eligible']
             rows = cur.fetchall()
             return {row[0]: dict(zip(cols, row)) for row in rows}
         except sqlite3.Error as e:
             logger.error(f"Failed to get_competition_submissions competition_id {competition_id}: {str(e)}")
             raise DatabaseError(f"Failed to get_competition_submissions: {str(e)}") from e
-
-
-
-
-
-
-
-    def finalize_competition(self, competition_id: str, winner_uid: list, reward_start: int, reward_end: int, winner_loss: list, min_loss: float, threshold_loss: float):
-        try:
-            c = self.conn.cursor()
-            c.execute(
-                "UPDATE daily_competitions SET winner_uid = ?, winner_loss = ?, min_loss = ?, threshold_loss = ?, reward_start_timestamp = ?, reward_end_timestamp = ?, status = ? WHERE competition_id = ?",
-                (json.dumps(winner_uid), json.dumps(winner_loss), min_loss, threshold_loss, reward_start, reward_end, 'rewarding' if winner_uid else 'completed', competition_id)
-            )
-            self.conn.commit()
-        except sqlite3.Error as e:
-            logger.error(f"Failed to set finalize_competition: {str(e)}")
-            raise DatabaseError(f"Failed to set finalize_competition: {str(e)}") from e
-
-    def get_active_reward_winner(self) -> list:
-        try:
-            c = self.conn.cursor()
-            cur = c.execute(
-                "SELECT winner_uid FROM daily_competitions WHERE status ='rewarding'"
-            )
-            row = cur.fetchone()
-            return row[0] if row else None
-        except sqlite3.Error as e:
-            logger.error(f"Failed to get get_active_reward_winner: {str(e)}")
-            raise DatabaseError(f"Failed to get get_active_reward_winner: {str(e)}") from e
 
     def get_competition_status(self, competition_id: str) -> str:
         try:
