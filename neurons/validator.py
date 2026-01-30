@@ -610,8 +610,9 @@ class Validator:
                 time.sleep(10)
                 return
                 # set status
-            self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
-
+            if self.score_db.get_competition_status(self.active_competition_id) == CompetitionState.REWARDING.value:
+                time.sleep(10)
+                return
             winners = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys)
             bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winners} ")
             if winners:
@@ -623,6 +624,7 @@ class Validator:
                         bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
                 self.weights = new_weights
                 self.reward_competition_id = self.active_competition_id
+                self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
 
             else:
