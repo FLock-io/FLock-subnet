@@ -72,12 +72,14 @@ def download_dataset(
     os.makedirs(local_dir, exist_ok=True)
 
     bt.logging.info(f"[HF] Downloading dataset {namespace}@{revision} → {local_dir}")
-    api.snapshot_download(
-        repo_id=namespace, local_dir=local_dir, revision=revision, repo_type="dataset"
-    )
-
-    db.set_revision(namespace, revision, local_dir)
-    time.sleep(1)
+    try:
+        api.snapshot_download(
+            repo_id=namespace, local_dir=local_dir, revision=revision, repo_type="dataset"
+        )
+        db.set_revision(namespace, revision, local_dir)
+        time.sleep(1)
+    except Exception as e:
+        bt.logging.error(f"api.snapshot_download error:{e}")
 
 
 def check_valid_revision(namespace: str, revision: str):
