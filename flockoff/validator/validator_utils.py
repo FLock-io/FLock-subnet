@@ -1,4 +1,6 @@
 import json
+from typing import Tuple, Any
+
 import bittensor as bt
 import numpy as np
 from flockoff import constants
@@ -85,18 +87,18 @@ def compute_score(
         return numerator / denominator + bench_height
 
 
-def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dict) -> int | None:
+def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dict) -> tuple[None, None] | tuple[int, float]:
     subs = db.get_competition_submissions(competition_id)
     scored = [s for s in subs.values() if s.get('eval_loss') is not None]
     if not scored:
-        return None
+        return None, None
 
     threshold_number = max(int(len(hotkeys) * constants.LOSS_THRESHOLD_PCT), 1)
     scored_by_loss = sorted(scored, key=lambda s: s['eval_loss'])
     eligible = scored_by_loss[:threshold_number]
 
     if not eligible:
-        return None
+        return None, None
 
     def sort_key(s):
         return (s.get('commitment_block', 10 ** 18), s.get('commitment_timestamp', 10 ** 18))
@@ -139,7 +141,7 @@ def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dic
                     bt.logging.info(f"{competition_id} competition_id winner found in scored_by_loss :{candidate_uid}")
                     break
 
-    return winner['uid']
+    return winner['uid'], winner['eval_loss']
 
 
 def load_jsonl(path, max_rows=None):

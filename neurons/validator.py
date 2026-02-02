@@ -613,18 +613,18 @@ class Validator:
             if self.score_db.get_competition_status(self.active_competition_id) == CompetitionState.REWARDING.value:
                 time.sleep(10)
                 return
-            winner = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys, self.metagraph.coldkeys)
+            winner, winner_loss = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys, self.metagraph.coldkeys)
             bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winner} ")
             if winner:
                 new_weights = torch.zeros_like(torch.tensor(self.metagraph.S), dtype=torch.float32)
-                for uid in winner:
-                    if uid < len(new_weights):
-                        new_weights[uid] = 1
-                    else:
-                        bt.logging.warning(f"UID {uid} out of bounds for new_weights tensor, skipping.")
+
+                if winner < len(new_weights):
+                    new_weights[winner] = 1
+                else:
+                    bt.logging.warning(f"UID {winner} out of bounds for new_weights tensor, skipping.")
                 self.weights = new_weights
                 self.reward_competition_id = self.active_competition_id
-                self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
+                self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value, winner, winner_loss)
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
 
             else:
