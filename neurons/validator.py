@@ -109,6 +109,20 @@ class Validator:
             help="Number of blocks before epoch end to set weights.",
         )
 
+        parser.add_argument(
+            "--active_competition_id",
+            type=str,
+            default="",
+            help="Set the initial winner parameters.",
+        )
+
+        parser.add_argument(
+            "--reward_competition_id",
+            type=str,
+            default="",
+            help="Set the initial winner parameters.",
+        )
+
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
         bt.wallet.add_args(parser)
@@ -160,8 +174,7 @@ class Validator:
         self.uid = assert_registered(self.wallet, self.metagraph)
 
         bt.logging.info("Initializing weights tensor")
-        self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
-        bt.logging.info(f"Weights initialized with shape: {self.weights.shape}")
+
 
         self.uids_to_eval: typing.Dict[str, typing.List] = {}
         bt.logging.info("Initializing score database")
@@ -176,9 +189,19 @@ class Validator:
                 self.subtensor.get_next_epoch_start_block(self.config.netuid) - tempo
         )
         self.pending_reveal: typing.Optional[dict] = None
-        self.active_competition_id: str = ""
-        self.reward_competition_id: str = ""
+        self.active_competition_id: str = self.config.active_competition_id
+        self.reward_competition_id: str = self.config.reward_competition_id
         self.use_yesterday_reward: bool = False
+
+        if self.reward_competition_id != "":
+            new_weights = torch.zeros_like(torch.tensor(self.metagraph.S), dtype=torch.float32)
+            winner = self.score_db.get_competition_winner(self.reward_competition_id)
+            if winner:
+                new_weights[winner] = 1
+            self.weights = new_weights
+        else:
+            self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
+            bt.logging.info(f"Weights initialized with shape: {self.weights.shape}")
 
         bt.logging.info("Validator ready to run")
 

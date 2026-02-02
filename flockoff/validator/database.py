@@ -223,6 +223,16 @@ class ScoreDB:
             logger.error(f"Failed to set set_revision {local_path}: {str(e)}")
             raise DatabaseError(f"Failed to record_submission_loss: {str(e)}") from e
 
+    def get_competition_winner(self, competition_id: str) -> int:
+        try:
+            c = self.conn.cursor()
+            cur = c.execute("SELECT winner_uid FROM daily_competitions WHERE competition_id = ?", (competition_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get get_competition_status: {str(e)}")
+            raise DatabaseError(f"Failed to get get_competition_status: {str(e)}") from e
+
     def __del__(self):
         """Close the connection when the instance is destroyed."""
         try:
