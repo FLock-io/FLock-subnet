@@ -34,7 +34,6 @@ class ScoreDB:
                           submission_end_timestamp INTEGER,
                           winner_uid int,
                           winner_loss REAL,
-                          min_loss REAL,
                           status TEXT,
                           use_yesterday_reward INTEGER,
                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -114,7 +113,6 @@ class ScoreDB:
             submission_end_timestamp,
             winner_uid,
             winner_loss,
-            min_loss,
             status,
             use_yesterday_reward
         )
@@ -124,7 +122,6 @@ class ScoreDB:
             submission_start_timestamp,
             winner_uid,
             winner_loss,
-            min_loss,
             ?,
             1
         FROM daily_competitions
