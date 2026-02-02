@@ -85,17 +85,16 @@ def compute_score(
         return numerator / denominator + bench_height
 
 
-def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict) -> list | None:
+def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dict) -> int | None:
     subs = db.get_competition_submissions(competition_id)
     scored = [s for s in subs.values() if s.get('eval_loss') is not None]
     if not scored:
         return None
 
-    losses = {s['uid']: s['eval_loss'] for s in scored}
-    L_min = min(losses.values())
-    threshold = L_min * (1.0 + constants.LOSS_THRESHOLD_PCT)
+    threshold_number = max(int(len(hotkeys) * constants.LOSS_THRESHOLD_PCT), 1)
+    scored_by_loss = sorted(scored, key=lambda s: s['eval_loss'])
+    eligible = scored_by_loss[:threshold_number]
 
-    eligible = [s for s in scored if s['eval_loss'] <= threshold]
     if not eligible:
         return None
 
@@ -103,36 +102,44 @@ def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict) -> list | Non
         return (s.get('commitment_block', 10 ** 18), s.get('commitment_timestamp', 10 ** 18))
 
     eligible_sorted = sorted(eligible, key=sort_key)
-    scored_by_loss = sorted(scored, key=lambda s: s['eval_loss'])
-    winners = [s['uid'] for s in eligible_sorted]
+    bt.logging.info(f"competition_id:{competition_id} , eligible_sorted:{eligible_sorted}")
+    winner = eligible_sorted[0]
 
-    for s in eligible_sorted:
-        uid = s['uid']
-        if s['hotkey'] != hotkeys[uid]:
-            coldkey_replace = s['coldkey']
-            winners.remove(uid)
-            replacement_found = False
-            for hotkey_uid, hotkey in hotkeys.items():
-                if hotkey == s['hotkey']:
-                    winners.append(hotkey_uid)
-                    replacement_found = True
+    uid = winner['uid']
+    if winner['hotkey'] != hotkeys[uid]:
+        replacement_found = False
+        for hotkey_uid, hotkey in hotkeys.items():
+            if hotkey == winner['hotkey']:
+                winner['uid'] = hotkey_uid
+                replacement_found = True
             if replacement_found:
-                continue
+                bt.logging.info(f"{competition_id} competition_id winner found in hotkeys :{hotkey_uid}")
+                return winner['uid']
+
+        for coldkey_uid, coldkey in coldkeys.items():
+            if coldkey == winner['coldkey']:
+                winner['uid'] = coldkey_uid
+                replacement_found = True
+            if replacement_found:
+                bt.logging.info(f"{competition_id} competition_id winner found in coldkeys :{coldkey_uid}")
+                return winner['uid']
+
+        if not replacement_found:
+            for candidate in eligible_sorted:
+                candidate_uid = candidate['uid']
+                if candidate_uid != uid and hotkeys[candidate_uid] == candidate['hotkey']:
+                    winner['uid'] = candidate_uid
+                    bt.logging.info(f"{competition_id} competition_id winner found in eligible_sorted :{candidate_uid}")
+                    return winner['uid']
+
             for candidate in scored_by_loss:
                 candidate_uid = candidate['uid']
-                if candidate['coldkey'] == coldkey_replace and candidate_uid != uid and \
-                        candidate_uid not in winners and hotkeys[candidate_uid] == subs[candidate_uid]["hotkey"]:
-                    winners.append(candidate_uid)
-                    replacement_found = True
+                if candidate_uid != uid and hotkeys[candidate_uid] == candidate['hotkey']:
+                    winner['uid'] = candidate_uid
+                    bt.logging.info(f"{competition_id} competition_id winner found in scored_by_loss :{candidate_uid}")
                     break
-            if not replacement_found:
-                for candidate in scored_by_loss:
-                    candidate_uid = candidate['uid']
-                    if candidate_uid not in winners and candidate_uid != uid and hotkeys[candidate_uid]==subs[candidate_uid]["hotkey"]:
-                        winners.append(candidate_uid)
-                        break
 
-    return winners
+    return winner['uid']
 
 
 def load_jsonl(path, max_rows=None):

@@ -613,11 +613,11 @@ class Validator:
             if self.score_db.get_competition_status(self.active_competition_id) == CompetitionState.REWARDING.value:
                 time.sleep(10)
                 return
-            winners = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys)
-            bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winners} ")
-            if winners:
+            winner = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys, self.metagraph.coldkeys)
+            bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winner} ")
+            if winner:
                 new_weights = torch.zeros_like(torch.tensor(self.metagraph.S), dtype=torch.float32)
-                for uid in winners:
+                for uid in winner:
                     if uid < len(new_weights):
                         new_weights[uid] = 1
                     else:

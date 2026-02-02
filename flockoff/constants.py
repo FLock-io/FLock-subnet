@@ -12,7 +12,7 @@ DEFAULT_DUPLICATE_COUNT = 40
 SCORE_PRECISION = 10_000
 
 SELECTION_SIZE = 100            # miners choose 100 rows
-LOSS_THRESHOLD_PCT = 0.10
+LOSS_THRESHOLD_PCT = 0.05
 
 submission_start_utc_min = 12 * 60
 submission_window_mins = 30

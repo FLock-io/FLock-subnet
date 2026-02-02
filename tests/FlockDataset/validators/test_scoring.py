@@ -196,32 +196,43 @@ def test_select_winner():
     score_db = ScoreDB("test.db")
     now = datetime.now(timezone.utc)
     competition_id_today = now.strftime("%Y%m%d")
-    score_db.record_submission(competition_id_today, 0, "h0", "c0", 0, int(time.time()), "name0", "revis0")
-    score_db.record_submission_loss(competition_id_today, 0, 0.1, is_eligible=True)
+    score_db.record_submission(competition_id_today, 0, "h0", "c0", 100, int(time.time()), "name0", "revis0")
+    score_db.record_submission_loss(competition_id_today, 0, 0.101, is_eligible=True)
 
-    score_db.record_submission(competition_id_today, 1, "h1", "c1", 1, int(time.time()), "name1", "revis1")
-    score_db.record_submission_loss(competition_id_today, 1, 0.101, is_eligible=True)
+    score_db.record_submission(competition_id_today, 1, "h1", "c1", 101, int(time.time()), "name1", "revis1")
+    score_db.record_submission_loss(competition_id_today, 1, 0.1, is_eligible=True)
 
-    score_db.record_submission(competition_id_today, 2, "h2", "c2", 2, int(time.time()), "name2", "revis2")
+    score_db.record_submission(competition_id_today, 2, "h2", "c2", 102, int(time.time()), "name2", "revis2")
     score_db.record_submission_loss(competition_id_today, 2, 10, is_eligible=True)
 
-    score_db.record_submission(competition_id_today, 3, "h3", "c3", 3, int(time.time()), "name3", "revis3")
+    score_db.record_submission(competition_id_today, 3, "h3", "c3", 103, int(time.time()), "name3", "revis3")
     score_db.record_submission_loss(competition_id_today, 3, 3, is_eligible=True)
 
-    score_db.record_submission(competition_id_today, 4, "h4", "c4", 4, int(time.time()), "name4", "revis4")
-    score_db.record_submission_loss(competition_id_today, 4, 0.1001, is_eligible=True)
+    temp_hot = {}
+    temp_cold = {}
+    for num in range(10, 255):
+        score_db.record_submission(competition_id_today, num, f"h{num}", f"c{num}", 100 + num, int(time.time()), f"name{num}", f"revis{num}")
+        score_db.record_submission_loss(competition_id_today, num, num, is_eligible=True)
+        temp_hot[num] = f"h{num}"
+        temp_cold[num] = f"c{num}"
 
-    score_db.record_submission(competition_id_today, 4, "h4", "c4", 4, int(time.time()), "name4", "revis4")
-    score_db.record_submission_loss(competition_id_today, 4, 0.1001, is_eligible=True)
+    print(select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33"},
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33"}) == 0)
+
+    score_db.record_submission(competition_id_today, 4, "h4", "c4", 80, int(time.time()), "name4", "revis4")
+    score_db.record_submission_loss(competition_id_today, 4, 0.09, is_eligible=True)
+
+    print(select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44"},
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44"}) == 0)
 
     score_db.record_submission(competition_id_today, 5, "h5", "c4", 4, int(time.time()), "name5", "revis5")
     score_db.record_submission_loss(competition_id_today, 5, 55, is_eligible=True)
 
-    score_db.record_submission(competition_id_today, 6, "h6", "c6", 4, int(time.time()), "name6", "revis6")
-    score_db.record_submission_loss(competition_id_today, 6, 0.1001, is_eligible=True)
+    print(select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h5"},
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c4"}) == 5)
 
-    score_db.record_submission(competition_id_today, 7, "h7", "c7", 4, int(time.time()), "name7", "revis7")
-    score_db.record_submission_loss(competition_id_today, 7, 6.7, is_eligible=True)
+    score_db.record_submission(competition_id_today, 5, "h5", "c4", 4, int(time.time()), "name5", "revis5")
+    score_db.record_submission_loss(competition_id_today, 5, 55, is_eligible=True)
 
-    print(select_winner(score_db, competition_id_today, {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h55", 6: "h66", 7: "h6"}) == [0, 1, 2, 7])
-    print(select_winner(score_db, competition_id_today, {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h5", 6: "h66", 7: "h6"}) == [0, 1, 5, 7])
+    print(select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h55"},
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c45"}) == 0)
