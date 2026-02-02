@@ -210,7 +210,7 @@ class ScoreDB:
     def get_revision(self, namespace: str, local_path: str) -> str:
         try:
             c = self.conn.cursor()
-            cur = c.execute("SELECT revision FROM revisions WHERE namespace = ? AND local_path = ?", (namespace, local_path))
+            cur = c.execute("SELECT revision FROM dataset_revisions WHERE namespace = ? AND local_path = ?", (namespace, local_path))
             row = cur.fetchone()
             return row[0] if row else None
         except sqlite3.Error as e:
@@ -221,7 +221,7 @@ class ScoreDB:
         try:
             c = self.conn.cursor()
             c.execute(
-                "INSERT OR REPLACE INTO revisions (local_path, namespace, revision) VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO dataset_revisions (local_path, namespace, revision) VALUES (?, ?, ?)",
                 (local_path, namespace, revision)
             )
             self.conn.commit()
