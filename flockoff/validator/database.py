@@ -59,6 +59,10 @@ class ScoreDB:
                            )"""
             )
 
+            c.execute(
+                """CREATE TABLE IF NOT EXISTS dataset_revisions
+                           (local_path TEXT PRIMARY KEY, namespace TEXT, revision TEXT)"""
+            )
             self.conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize database tables: {str(e)}")
@@ -202,6 +206,28 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to get get_competition_status: {str(e)}")
             raise DatabaseError(f"Failed to get get_competition_status: {str(e)}") from e
+
+    def get_revision(self, namespace: str, local_path: str) -> str:
+        try:
+            c = self.conn.cursor()
+            cur = c.execute("SELECT revision FROM revisions WHERE namespace = ? AND local_path = ?", (namespace, local_path))
+            row = cur.fetchone()
+            return row[0] if row else None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get get_revision: {str(e)}")
+            raise DatabaseError(f"Failed to get get_revision: {str(e)}") from e
+
+    def set_revision(self, namespace: str, revision: str, local_path: str):
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "INSERT OR REPLACE INTO revisions (local_path, namespace, revision) VALUES (?, ?, ?)",
+                (local_path, namespace, revision)
+            )
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set set_revision {local_path}: {str(e)}")
+            raise DatabaseError(f"Failed to record_submission_loss: {str(e)}") from e
 
     def __del__(self):
         """Close the connection when the instance is destroyed."""

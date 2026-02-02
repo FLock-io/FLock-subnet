@@ -53,7 +53,7 @@ def download_dataset(
         local_dir = os.path.abspath(local_dir)
 
     db = ScoreDB("scores.db")
-    last = db.get_revision(namespace)
+    last = db.get_revision(namespace, local_dir)
 
     # only skip if we've recorded the same revision *and* dir still exists
     if last == revision and os.path.isdir(local_dir):
@@ -76,7 +76,7 @@ def download_dataset(
         repo_id=namespace, local_dir=local_dir, revision=revision, repo_type="dataset"
     )
 
-    db.set_revision(namespace, revision)
+    db.set_revision(namespace, revision, local_dir)
     time.sleep(1)
 
 
