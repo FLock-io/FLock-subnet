@@ -330,6 +330,26 @@ class Validator:
                 f"Blocks to epoch is greater than threshold, not setting weights"
             )
 
+        if self.pending_reveal is not None:
+            try:
+                bt.logging.info("Attempting to reveal previously committed weights")
+                reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
+                    subtensor=self.subtensor,
+                    wallet=self.wallet,
+                    netuid=self.config.netuid,
+                    uids=self.pending_reveal["uids"],
+                    weights=self.pending_reveal["weights"],
+                    salt=self.pending_reveal["salt"],
+                    wait_for_inclusion=True,
+                )
+                if reveal_success:
+                    bt.logging.info(f"Reveal succeeded: {reveal_msg}")
+                    self.pending_reveal = None
+                else:
+                    bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
+            except Exception as e:
+                bt.logging.error(f"Reveal attempt failed: {e}")
+
         # SUBMISSION
         if constants.submission_start_utc_min <= minutes_today < constants.validate_start_utc_min:
             # record exists, the task is already created
@@ -659,25 +679,6 @@ class Validator:
             bt.logging.error(f"The minutes time is error: {minutes_today}")
             raise RuntimeError(f"No winners for competition_id {self.active_competition_id}")
 
-        if self.pending_reveal is not None:
-            try:
-                bt.logging.info("Attempting to reveal previously committed weights")
-                reveal_success, reveal_msg, _ = reveal_weights_with_err_msg(
-                    subtensor=self.subtensor,
-                    wallet=self.wallet,
-                    netuid=self.config.netuid,
-                    uids=self.pending_reveal["uids"],
-                    weights=self.pending_reveal["weights"],
-                    salt=self.pending_reveal["salt"],
-                    wait_for_inclusion=True,
-                )
-                if reveal_success:
-                    bt.logging.info(f"Reveal succeeded: {reveal_msg}")
-                    self.pending_reveal = None
-                else:
-                    bt.logging.info(f"Reveal not successful yet: {reveal_msg}")
-            except Exception as e:
-                bt.logging.error(f"Reveal attempt failed: {e}")
 
     async def run(self):
         while True:
