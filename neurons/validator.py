@@ -647,7 +647,8 @@ class Validator:
                     bt.logging.warning(f"UID {winner} out of bounds for new_weights tensor, skipping.")
                 self.weights = new_weights
                 self.reward_competition_id = self.active_competition_id
-                self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value, winner, winner_loss)
+                self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
+                self.score_db.update_competition_score(self.active_competition_id, winner, winner_loss)
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
 
             else:

@@ -136,12 +136,24 @@ class ScoreDB:
             logger.error(f"Failed to copy competition_id {new_id}: {str(e)}")
             raise DatabaseError(f"Failed to copy competition_id: {str(e)}") from e
 
-    def update_competition_status(self, competition_id: str, status: str,winner_uid: int, winner_loss: float):
+    def update_competition_status(self, competition_id: str, status: str):
         try:
             c = self.conn.cursor()
             c.execute(
-                "UPDATE daily_competitions SET status = ?,winner_uid=?,winner_loss=? WHERE competition_id = ?",
-                (status, winner_uid,  winner_loss, competition_id)
+                "UPDATE daily_competitions SET status = ? WHERE competition_id = ?",
+                (status, competition_id)
+            )
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Failed to set update_competition_status: {str(e)}")
+            raise DatabaseError(f"Failed to set update_competition_status: {str(e)}") from e
+
+    def update_competition_score(self, competition_id: str, winner_uid: int, winner_loss: float):
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                "UPDATE daily_competitions SET winner_uid=?,winner_loss=? WHERE competition_id = ?",
+                (winner_uid,  winner_loss, competition_id)
             )
             self.conn.commit()
         except sqlite3.Error as e:
