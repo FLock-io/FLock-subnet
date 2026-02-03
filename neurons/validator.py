@@ -333,7 +333,7 @@ class Validator:
         # SUBMISSION
         if constants.submission_start_utc_min <= minutes_today < constants.validate_start_utc_min:
             # record exists, the task is already created
-            if self.score_db.get_competition_info(self.active_competition_id):
+            if self.score_db.get_competition_info(competition_id_today):
                 if self.use_yesterday_reward:
                     time.sleep(10)
                     return
@@ -637,7 +637,7 @@ class Validator:
                 time.sleep(10)
                 return
             winner, winner_loss = select_winner(self.score_db, self.active_competition_id, self.metagraph.hotkeys, self.metagraph.coldkeys)
-            bt.logging.error(f"Competition_id {self.active_competition_id} winners is {winner} ")
+            bt.logging.info(f"Competition_id {self.active_competition_id} winners is {winner} ")
             if winner:
                 new_weights = torch.zeros_like(torch.tensor(self.metagraph.S), dtype=torch.float32)
 

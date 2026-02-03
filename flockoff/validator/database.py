@@ -120,6 +120,7 @@ class ScoreDB:
             ?,
             dataset_commit,
             submission_start_timestamp,
+            submission_end_timestamp,
             winner_uid,
             winner_loss,
             ?,
