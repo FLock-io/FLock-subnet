@@ -167,7 +167,7 @@ def test_copy_competition_id(db):
     db.update_competition_score(old_id, winner_uid=7, winner_loss=0.5)
 
     # Perform Copy
-    db.copy_competion_id(new_id, old_id)
+    db.copy_competition_id(new_id, old_id)
 
     # Verify New Entry
     c = db.conn.cursor()

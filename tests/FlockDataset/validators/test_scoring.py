@@ -206,7 +206,7 @@ def test_select_winner(db):
         temp_cold[num] = f"c{num}"
 
     assert select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33"},
-                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33"}) == 0
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33"}) == (0, 0.101)
 
     score_db.record_submission(competition_id_today, 4, "h4", "c4", 80, int(time.time()), "name4", "revis4")
     score_db.record_submission_loss(competition_id_today, 4, 0.09, is_eligible=True)
