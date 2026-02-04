@@ -104,7 +104,7 @@ class ScoreDB:
             logger.error(f"Failed to create competition_id {competition_id}: {str(e)}")
             raise DatabaseError(f"Failed to create competition_id: {str(e)}") from e
 
-    def copy_competion_id(self, new_id, old_id):
+    def copy_competition_id(self, new_id, old_id):
         sql = """
         INSERT INTO daily_competitions (
             competition_id,

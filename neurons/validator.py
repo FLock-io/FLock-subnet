@@ -380,7 +380,7 @@ class Validator:
                 bt.logging.info("COPY COMPETITION REWARD BEFORE")
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
                 self.use_yesterday_reward = True
-                self.score_db.copy_competion_id(competition_id_today, self.active_competition_id)
+                self.score_db.copy_competition_id(competition_id_today, self.active_competition_id)
                 self.score_db.update_competition_status(self.active_competition_id, CompetitionState.COMPLETED.value)
                 self.active_competition_id = competition_id_today
 
@@ -388,7 +388,7 @@ class Validator:
         elif constants.validate_start_utc_min <= minutes_today < 24 * 60 or \
                 minutes_today < constants.reward_start_utc_min:
 
-            if self.use_yesterday_reward:
+            if self.use_yesterday_reward or self.active_competition_id=="":
                 time.sleep(10)
                 return
 
@@ -649,7 +649,7 @@ class Validator:
         # REWARDING
         elif constants.reward_start_utc_min <= minutes_today < constants.submission_start_utc_min:
 
-            if self.use_yesterday_reward:
+            if self.use_yesterday_reward or self.active_competition_id == "":
                 time.sleep(10)
                 return
                 # set status

@@ -10,144 +10,174 @@ def db():
 
 
 def test_init_db(db):
-    """Test that the database initializes with the correct table and columns."""
+    """Test that the database initializes with the correct tables."""
     c = db.conn.cursor()
-    c.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='miner_scores'"
+
+    # Check for daily_competitions
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='daily_competitions'")
+    assert c.fetchone() is not None, "Table 'daily_competitions' should exist"
+
+    # Check for competition_submissions
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='competition_submissions'")
+    assert c.fetchone() is not None, "Table 'competition_submissions' should exist"
+
+    # Check for dataset_revisions
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='dataset_revisions'")
+    assert c.fetchone() is not None, "Table 'dataset_revisions' should exist"
+
+
+def test_competition_lifecycle(db):
+    """Test creating a competition, retrieving info, and updating status."""
+    comp_id = "comp_2023_10_01"
+    start_time = 1700000000
+    commit_hash = "abc12345"
+
+    # 1. Create Competition
+    db.create_competition(comp_id, start_time, commit_hash)
+
+    # 2. Get Info
+    retrieved_commit = db.get_competition_info(comp_id)
+    assert retrieved_commit == commit_hash, "Should retrieve the correct dataset commit"
+
+    # 3. Check Initial Status
+    status = db.get_competition_status(comp_id)
+    assert status == "submission", "Initial status should be 'submission'"
+
+    # 4. Update Status
+    db.update_competition_status(comp_id, "evaluating")
+    new_status = db.get_competition_status(comp_id)
+    assert new_status == "evaluating", "Status should be updated to 'evaluating'"
+
+
+def test_record_submission(db):
+    """Test recording and retrieving miner submissions."""
+    comp_id = "comp_1"
+    db.create_competition(comp_id, 1000, "commit_x")
+
+    uid = 5
+    hotkey = "hk_5"
+    coldkey = "ck_5"
+
+    # 1. Record Submission
+    db.record_submission(
+        competition_id=comp_id,
+        uid=uid,
+        hotkey=hotkey,
+        coldkey=coldkey,
+        commitment_block=100,
+        commitment_timestamp=1001,
+        namespace="hf_repo",
+        revision="main"
     )
-    assert c.fetchone() is not None, "The 'miner_scores' table should be created"
-    c.execute("PRAGMA table_info(miner_scores)")
-    columns = {row[1] for row in c.fetchall()}
-    expected_columns = {"uid", "hotkey", "raw_score", "normalized_score", "namespace", "revision", "raw_loss"}
-    assert columns == expected_columns, f"Expected columns {expected_columns}, got {columns}"
+
+    # 2. Retrieve Submissions
+    submissions = db.get_competition_submissions(comp_id)
+    assert uid in submissions
+    data = submissions[uid]
+    assert data['hotkey'] == hotkey
+    assert data['namespace'] == "hf_repo"
+    assert data['eval_loss'] is None  # Should be None initially
+
+    # 3. Update Submission (Upsert) - Change revision
+    db.record_submission(
+        competition_id=comp_id,
+        uid=uid,
+        hotkey=hotkey,
+        coldkey=coldkey,
+        commitment_block=105,
+        commitment_timestamp=1005,
+        namespace="hf_repo",
+        revision="dev_branch"
+    )
+
+    submissions_updated = db.get_competition_submissions(comp_id)
+    assert submissions_updated[uid]['revision'] == "dev_branch", "Submission should be updated"
 
 
-def test_insert_or_reset_uid(db):
-    """Test inserting or resetting UIDs with hotkeys, raw_score, and normalized_score."""
-    base_raw = 0.05  # Example base raw score
-    initial_norm = 0.0  # Example initial normalized score
+def test_record_submission_loss(db):
+    """Test updating the evaluation loss and eligibility."""
+    comp_id = "comp_1"
+    uid = 10
+    db.create_competition(comp_id, 1000, "commit_x")
 
-    # Insert new UID
-    db.insert_or_reset_uid(1, "hotkey1", base_raw, initial_norm)
-    raw_score = db.get_raw_eval_score(1)
-    norm_score = db.get_normalized_score(1)
-    assert raw_score == pytest.approx(base_raw), f"New UID should have raw_score {base_raw}"
-    assert norm_score == pytest.approx(initial_norm), f"New UID should have normalized_score {initial_norm}"
+    # Must exist before recording loss
+    db.record_submission(comp_id, uid, "hk", "ck", 1, 1, "ns", "rev")
 
-    # Update scores and check no reset with same hotkey
-    db.update_raw_eval_score(1, 0.75)
-    db.update_final_normalized_score(1, 0.85)
-    raw_score = db.get_raw_eval_score(1)
-    norm_score = db.get_normalized_score(1)
-    assert raw_score == 0.75, "Raw score should be updated"
-    assert norm_score == 0.85, "Normalized score should be updated"
-    
-    db.insert_or_reset_uid(1, "hotkey1", base_raw, initial_norm) # This should not overwrite existing if hotkey matches
-    raw_score_after_reinsert = db.get_raw_eval_score(1)
-    norm_score_after_reinsert = db.get_normalized_score(1)
-    assert raw_score_after_reinsert == 0.75, "Raw score should remain after re-insert with same hotkey"
-    assert norm_score_after_reinsert == 0.85, "Normalized score should remain after re-insert with same hotkey"
+    # 1. Record Loss
+    loss_val = 0.456
+    is_eligible = True
+    db.record_submission_loss(comp_id, uid, loss_val, is_eligible)
 
-    # Reset scores with different hotkey
-    new_base_raw = 0.06
-    new_initial_norm = 0.01
-    db.insert_or_reset_uid(1, "hotkey2", new_base_raw, new_initial_norm)
-    raw_score = db.get_raw_eval_score(1)
-    norm_score = db.get_normalized_score(1)
-    assert raw_score == pytest.approx(new_base_raw), f"Raw score should reset to {new_base_raw} with new hotkey"
-    assert norm_score == pytest.approx(new_initial_norm), f"Normalized score should reset to {new_initial_norm} with new hotkey"
+    # 2. Verify
+    submissions = db.get_competition_submissions(comp_id)
+    assert submissions[uid]['eval_loss'] == loss_val
+    assert submissions[uid]['is_eligible'] == 1  # SQLite stores bool as 0/1
 
 
-def test_update_raw_eval_score(db):
-    """Test updating raw evaluation scores for UIDs."""
-    db.insert_or_reset_uid(1, "hotkey1", 0.1, 0.0)
-    db.update_raw_eval_score(1, 0.77)
-    raw_score = db.get_raw_eval_score(1)
-    assert raw_score == 0.77, "Raw score should be updated to 0.77"
+def test_competition_winner_and_score(db):
+    """Test setting and retrieving the competition winner."""
+    comp_id = "comp_winner_test"
+    db.create_competition(comp_id, 1000, "commit_x")
 
-    # Test updating non-existent UID (should not raise error, no change)
-    db.update_raw_eval_score(2, 0.88) 
-    raw_score_2 = db.get_raw_eval_score(2)
-    assert raw_score_2 is None, "Raw score for non-existent UID 2 should be None"
+    winner_uid = 42
+    winner_loss = 0.123
 
+    # 1. Update Score/Winner
+    db.update_competition_score(comp_id, winner_uid, winner_loss)
 
-def test_update_final_normalized_score(db):
-    """Test updating final normalized scores for UIDs."""
-    db.insert_or_reset_uid(1, "hotkey1", 0.1, 0.0)
-    db.update_final_normalized_score(1, 0.99)
-    norm_score = db.get_normalized_score(1)
-    assert norm_score == 0.99, "Normalized score should be updated to 0.99"
+    # 2. Get Winner
+    retrieved_winner = db.get_competition_winner(comp_id)
+    assert retrieved_winner == winner_uid
 
-    # Test updating non-existent UID (should not raise error, no change)
-    db.update_final_normalized_score(2, 0.88)
-    norm_score_2 = db.get_normalized_score(2)
-    assert norm_score_2 == 0.0, "Normalized score for non-existent UID 2 should be default 0.0"
+    # Check directly via SQL that loss was saved
+    c = db.conn.cursor()
+    c.execute("SELECT winner_loss FROM daily_competitions WHERE competition_id=?", (comp_id,))
+    assert c.fetchone()[0] == winner_loss
 
 
-def test_get_raw_eval_score(db):
-    """Test retrieving raw evaluation scores."""
-    # Test non-existing UID
-    score = db.get_raw_eval_score(1)
-    assert score is None, "Non-existing UID should return None for raw score"
+def test_dataset_revisions(db):
+    """Test setting and getting local dataset revisions."""
+    namespace = "myset"
+    revision = "v1.0"
+    local_path = "/tmp/data"
 
-    # Insert UID and check raw score
-    db.insert_or_reset_uid(1, "hotkey1", 0.123, 0.0)
-    score = db.get_raw_eval_score(1)
-    assert score == 0.123, "Raw score should be 0.123"
+    # 1. Set Revision
+    db.set_revision(namespace, revision, local_path)
 
-    # Update raw score and check
-    db.update_raw_eval_score(1, 0.456)
-    score = db.get_raw_eval_score(1)
-    assert score == 0.456, "Raw score should be updated to 0.456"
+    # 2. Get Revision
+    retrieved = db.get_revision(namespace, local_path)
+    assert retrieved == revision
 
-def test_get_all_normalized_scores(db):
-    """Test retrieving all normalized scores for a list of UIDs."""
-    db.insert_or_reset_uid(1, "hotkey1", 0.1, 0.5)
-    db.insert_or_reset_uid(2, "hotkey2", 0.2, 0.6)
-    db.update_final_normalized_score(1, 0.55)
-    db.update_final_normalized_score(2, 0.66)
+    # 3. Update Revision
+    db.set_revision(namespace, "v1.1", local_path)
+    retrieved_updated = db.get_revision(namespace, local_path)
+    assert retrieved_updated == "v1.1"
 
-    # Get scores for existing UIDs
-    scores = db.get_all_normalized_scores([1, 2])
-    assert len(scores) == 2, "Should return two scores"
-    assert scores[0] == 0.55, "UID 1 should have normalized score 0.55"
-    assert scores[1] == 0.66, "UID 2 should have normalized score 0.66"
-
-    # Get score for non-existing UID
-    scores = db.get_all_normalized_scores([3])
-    assert scores == [0.0], "Non-existing UID should return [0.0]"
-
-    # Get scores for mixed UIDs
-    scores = db.get_all_normalized_scores([1, 3])
-    assert len(scores) == 2, "Should return two scores"
-    assert scores[0] == 0.55, "Existing UID 1 should have normalized score 0.55"
-    assert scores[1] == 0.0, "Non-existing UID 3 should have normalized score 0.0"
-    
-    # Test with empty list
-    scores = db.get_all_normalized_scores([])
-    assert scores == [], "Empty UID list should return empty list"
+    # 4. Non-existent
+    assert db.get_revision("other", "path") is None
 
 
-def test_get_normalized_score(db):
-    """Test retrieving a single normalized score for a UID."""
-    # Test non-existing UID
-    score = db.get_normalized_score(1)
-    assert score == 0.0, "Non-existing UID should return 0.0 for normalized score"
+def test_copy_competition_id(db):
+    """Test the functionality of copying/archiving a competition ID."""
+    old_id = "comp_yesterday"
+    new_id = "comp_rewarding_record"
 
-    # Insert UID and check initial normalized score
-    db.insert_or_reset_uid(1, "hotkey1", 0.1, 0.05)
-    score = db.get_normalized_score(1)
-    assert score == 0.05, "Initial normalized score should be 0.05"
+    # Setup initial competition
+    db.create_competition(old_id, 1000, "commit_old")
+    db.update_competition_score(old_id, winner_uid=7, winner_loss=0.5)
 
-    # Update normalized score and check
-    db.update_final_normalized_score(1, 0.75)
-    score = db.get_normalized_score(1)
-    assert score == 0.75, "Normalized score should be updated to 0.75"
+    # Perform Copy
+    db.copy_competion_id(new_id, old_id)
 
-    # Test with multiple UIDs
-    db.insert_or_reset_uid(2, "hotkey2", 0.2, 0.15)
-    db.update_final_normalized_score(2, 0.85)
-    score1 = db.get_normalized_score(1)
-    score2 = db.get_normalized_score(2)
-    assert score1 == 0.75, "UID 1 normalized score should be 0.75"
-    assert score2 == 0.85, "UID 2 normalized score should be 0.85"
+    # Verify New Entry
+    c = db.conn.cursor()
+    c.execute("SELECT dataset_commit, winner_uid, use_yesterday_reward, status FROM daily_competitions WHERE competition_id=?", (new_id,))
+    row = c.fetchone()
+
+    assert row is not None
+    assert row[0] == "commit_old"  # Should copy commit
+    assert row[1] == 7  # Should copy winner
+    assert row[2] == 1  # use_yesterday_reward should be 1
+    assert row[3] == "rewarding"  # status should be 'rewarding'
+
+
