@@ -23,7 +23,7 @@ reward_start_utc_min = 11 * 60 + 30
 class Competition:
     """Class defining model parameters"""
     id: str = "1"
-    repo: str = "flock-io/flock-off-s1-character-roleplay"
+    repo: str = "flock-io/flock-off-s1-competition"
     bench: float = 2.60
     minb: float = 2.40
     maxb: float = 2.80
