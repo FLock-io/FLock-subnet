@@ -116,7 +116,7 @@ def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dic
                 replacement_found = True
             if replacement_found:
                 bt.logging.info(f"{competition_id} competition_id winner found in hotkeys :{hotkey_uid}")
-                return winner['uid']
+                return winner['uid'], winner['eval_loss']
 
         for coldkey_uid, coldkey in coldkeys.items():
             if coldkey == winner['coldkey']:
@@ -124,7 +124,7 @@ def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dic
                 replacement_found = True
             if replacement_found:
                 bt.logging.info(f"{competition_id} competition_id winner found in coldkeys :{coldkey_uid}")
-                return winner['uid']
+                return winner['uid'], winner['eval_loss']
 
         if not replacement_found:
             for candidate in eligible_sorted:
@@ -132,7 +132,7 @@ def select_winner(db: ScoreDB, competition_id: str, hotkeys: dict, coldkeys: dic
                 if candidate_uid != uid and hotkeys[candidate_uid] == candidate['hotkey']:
                     winner['uid'] = candidate_uid
                     bt.logging.info(f"{competition_id} competition_id winner found in eligible_sorted :{candidate_uid}")
-                    return winner['uid']
+                    return winner['uid'], winner['eval_loss']
 
             for candidate in scored_by_loss:
                 candidate_uid = candidate['uid']
