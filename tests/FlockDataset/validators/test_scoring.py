@@ -218,10 +218,10 @@ def test_select_winner(db):
     score_db.record_submission_loss(competition_id_today, 5, 55, is_eligible=True)
 
     assert select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h5"},
-                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c4"}) == 5
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c4"}) == (5, 0.09)
 
     score_db.record_submission(competition_id_today, 5, "h5", "c4", 4, int(time.time()), "name5", "revis5")
     score_db.record_submission_loss(competition_id_today, 5, 55, is_eligible=True)
 
     assert select_winner(score_db, competition_id_today, temp_hot | {0: "h0", 1: "h1", 2: "h2", 3: "h33", 4: "h44", 5: "h55"},
-                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c45"}) == 0
+                        temp_cold | {0: "c0", 1: "c1", 2: "c2", 3: "c33", 4: "c44", 5: "c45"}) == (0, 0.09)
