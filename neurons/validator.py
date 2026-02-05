@@ -201,9 +201,29 @@ class Validator:
             self.weights = new_weights
         else:
             self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
-            bt.logging.info(f"Weights initialized with shape: {self.weights.shape}")
+            # Get the burn UID.
+            burn_uid = self.get_burn_uid()
+            self.weights[burn_uid] =1
+            bt.logging.info(f"Initial weight :{self.weights}")
 
         bt.logging.info("Validator ready to run")
+
+    def get_burn_uid(self):
+        # Get the subtensor owner hotkey
+        sn_owner_hotkey = self.subtensor.query_subtensor(
+            "SubnetOwnerHotkey",
+            params=[self.config.netuid],
+        )
+        bt.logging.info(f"SN Owner Hotkey: {sn_owner_hotkey}")
+
+        # Get the UID of this hotkey
+        sn_owner_uid = self.subtensor.get_uid_for_hotkey_on_subnet(
+            hotkey_ss58=sn_owner_hotkey,
+            netuid=self.config.netuid,
+        )
+        bt.logging.info(f"SN Owner UID: {sn_owner_uid}")
+
+        return sn_owner_uid
 
     def get_registration_block(self, uid: int) -> typing.Optional[int]:
         """Get the block at which a UID was registered on the subnet.
