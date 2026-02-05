@@ -290,17 +290,11 @@ class Validator:
             bt.logging.warning("Failed to sync metagraph")
             return
 
-        bt.logging.info("Getting current UIDs and hotkeys")
         current_uids = self.metagraph.uids.tolist()
         hotkeys = self.metagraph.hotkeys
         coldkeys = self.metagraph.coldkeys
         self.consensus = self.metagraph.C
         bt.logging.debug(f"Consensus: {self.consensus}")
-
-        is_testnet = self.config.subtensor.network == "test"
-        bt.logging.info(f"Network: {self.config.subtensor.network}")
-        bt.logging.info(f"Is testnet: {is_testnet}")
-        bt.logging.info("Reading chain commitment")
 
         now = datetime.now(timezone.utc)
         competition_id_today = now.strftime("%Y%m%d")
@@ -309,8 +303,6 @@ class Validator:
         competition = Competition.from_defaults()
         eval_namespace = competition.repo
         main_commit_id = get_hg_revision(eval_namespace, constants.eval_commit)
-
-        bt.logging.info("Sampling competitors for evaluation")
         competitors = current_uids
 
         # set weight at the begining
@@ -408,8 +400,9 @@ class Validator:
         elif constants.validate_start_utc_min <= minutes_today < 24 * 60 or \
                 minutes_today < constants.reward_start_utc_min:
 
-            if self.use_yesterday_reward or self.active_competition_id=="":
+            if self.use_yesterday_reward or self.active_competition_id == "":
                 time.sleep(10)
+                bt.logging.info(f"now the weight is {self.weights}")
                 return
 
             if self.pending_reveal is not None:
@@ -671,6 +664,7 @@ class Validator:
 
             if self.use_yesterday_reward or self.active_competition_id == "":
                 time.sleep(10)
+                bt.logging.info(f"now the weight is {self.weights}")
                 return
                 # set status
             if self.score_db.get_competition_status(self.active_competition_id) == CompetitionState.REWARDING.value:
