@@ -1,5 +1,4 @@
 from pathlib import Path
-import bittensor as bt
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,22 +7,29 @@ DECAY_RATE = 1
 MIN_WEIGHT_THRESHOLD = 1e-6
 DEFAULT_RAW_SCORE = 999
 DEFAULT_NORMALIZED_SCORE = 0.0
-DEFAULT_DUPLICATE_COUNT = 100
+DEFAULT_DUPLICATE_COUNT = 33
 
 SCORE_PRECISION = 10_000
 
+SELECTION_SIZE = 100            # miners choose 100 rows
+LOSS_THRESHOLD_PCT = 0.05
+
+submission_start_utc_min = 12 * 60
+submission_window_mins = 30
+validate_start_utc_min = 12 * 60 + submission_window_mins
+reward_start_utc_min = 11 * 60 + 30
 
 @dataclass
 class Competition:
     """Class defining model parameters"""
     id: str = "1"
-    repo: str = "flock-io/flock-off-s1-character-roleplay"
+    repo: str = "flock-io/flock-off-s1-competition"
     bench: float = 2.60
     minb: float = 2.40
     maxb: float = 2.80
     bheight: float = 0.05
     pow: int = 2
-    rows: int = 250
+    rows: int = SELECTION_SIZE
 
     @classmethod
     def from_defaults(cls) -> "Competition":
@@ -32,4 +38,6 @@ class Competition:
 
 
 # eval dataset huggingface
-eval_commit = "784fbf1e78d16c512750e3bb5391fa6b338818ae"
+eval_commit = "main"
+
+

@@ -8,7 +8,7 @@ GIT_COMMIT_LENGTH = 40
 # The length, in bytes, of a base64 encoded sha256 hash.
 SHA256_BASE_64_LENGTH = 44
 # The max length, in characters, of the competition id
-MAX_COMPETITION_ID_LENGTH = 2
+MAX_COMPETITION_ID_LENGTH = 12
 
 
 class ModelId(BaseModel):
