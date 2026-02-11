@@ -61,6 +61,10 @@ class ScoreDB:
                 """CREATE TABLE IF NOT EXISTS dataset_revisions
                            (local_path TEXT PRIMARY KEY, namespace TEXT, revision TEXT)"""
             )
+            c.execute("""
+                    CREATE TABLE IF NOT EXISTS validator_state (
+                        key TEXT PRIMARY KEY, value TEXT)"""
+            )
             self.conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize database tables: {str(e)}")
@@ -245,6 +249,23 @@ class ScoreDB:
         except sqlite3.Error as e:
             logger.error(f"Failed to get get_competition_status: {str(e)}")
             raise DatabaseError(f"Failed to get get_competition_status: {str(e)}") from e
+
+    def set_state(self, key: str, value):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "REPLACE INTO validator_state (key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
+        )
+        self.conn.commit()
+
+    def get_state(self, key: str):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT value FROM validator_state WHERE key = ?",
+            (key,),
+        )
+        row = cursor.fetchone()
+        return json.loads(row[0]) if row else None
 
     def __del__(self):
         """Close the connection when the instance is destroyed."""
