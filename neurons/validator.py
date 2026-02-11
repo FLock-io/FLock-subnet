@@ -301,7 +301,7 @@ class Validator:
             self.active_competition_id = stored_active
             self.reward_competition_id = stored_reward
             self.use_yesterday_reward = stored_use_yesterday
-            self.weights = stored_weights
+            self.weights = torch.tensor(stored_weights, dtype=torch.float32)
         else:
             self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
             # Get the burn UID.
