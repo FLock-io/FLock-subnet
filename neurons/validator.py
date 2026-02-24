@@ -30,7 +30,7 @@ from flockoff import constants
 from flockoff.utils.chain import assert_registered
 from flockoff.utils.git import check_and_update_code
 from enum import Enum
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flockoff.validator.chain import (
     retrieve_model_metadata,
     set_weights_with_err_msg,
@@ -200,11 +200,8 @@ class Validator:
                 new_weights[winner] = 1
             self.weights = new_weights
         else:
-            self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
-            # Get the burn UID.
-            burn_uid = self.get_burn_uid()
-            self.weights[burn_uid] =1
-            bt.logging.info(f"Initial weight :{self.weights}")
+            self._comp_exists_in_db()
+
 
         bt.logging.info("Validator ready to run")
 
@@ -279,6 +276,38 @@ class Validator:
             # The database wasn’t updated, reward as the same as previous day.
             return False
         return True
+
+    def persist_state(self):
+        try:
+            self.score_db.set_state("active_competition_id", self.active_competition_id)
+            self.score_db.set_state("reward_competition_id", self.reward_competition_id)
+            self.score_db.set_state("use_yesterday_reward", self.use_yesterday_reward)
+            self.score_db.set_state("weights", self.weights.tolist() if isinstance(self.weights, torch.Tensor) else self.weights)
+        except Exception as e:
+            bt.logging.error(f"Failed to persist validator state: {e}")
+
+    def _comp_exists_in_db(self):
+        now = datetime.now(timezone.utc)
+        competition_id_today = now.strftime("%Y%m%d")
+        competition_id_yesterday = (now - timedelta(days=1)).strftime("%Y%m%d")
+
+        stored_active = self.score_db.get_state("active_competition_id")
+        stored_reward = self.score_db.get_state("reward_competition_id")
+        stored_use_yesterday = self.score_db.get_state("use_yesterday_reward")
+        stored_weights = self.score_db.get_state("weights")
+
+        if stored_active and stored_active in (competition_id_today, competition_id_yesterday) and \
+                self.score_db.get_competition_info(stored_active):
+            self.active_competition_id = stored_active
+            self.reward_competition_id = stored_reward
+            self.use_yesterday_reward = stored_use_yesterday
+            self.weights = torch.tensor(stored_weights, dtype=torch.float32)
+        else:
+            self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
+            # Get the burn UID.
+            burn_uid = self.get_burn_uid()
+            self.weights[burn_uid] = 1
+            bt.logging.info(f"Initial weight :{self.weights}")
 
     async def run_step(self):
         bt.logging.info("Starting run step")
@@ -387,7 +416,7 @@ class Validator:
                 self.active_competition_id = competition_id_today
                 self.use_yesterday_reward = False
                 self.score_db.create_competition(self.active_competition_id, int(now.timestamp()), main_commit_id)
-
+                self.persist_state()
             else:
                 bt.logging.info("COPY COMPETITION REWARD BEFORE")
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
@@ -395,6 +424,7 @@ class Validator:
                 self.score_db.copy_competition_id(competition_id_today, self.active_competition_id)
                 self.score_db.update_competition_status(self.active_competition_id, CompetitionState.COMPLETED.value)
                 self.active_competition_id = competition_id_today
+                self.persist_state()
 
         # VALIDATION
         elif constants.validate_start_utc_min <= minutes_today < 24 * 60 or \
@@ -684,6 +714,7 @@ class Validator:
                 self.score_db.update_competition_status(self.active_competition_id, CompetitionState.REWARDING.value)
                 self.score_db.update_competition_score(self.active_competition_id, winner, winner_loss)
                 bt.logging.info(f"weights set by reward_competition_id {self.reward_competition_id}")
+                self.persist_state()
 
             else:
                 bt.logging.error(f"There is no score for Competition_id {self.active_competition_id}")
